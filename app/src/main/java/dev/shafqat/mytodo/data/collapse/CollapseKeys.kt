@@ -54,6 +54,16 @@ object CollapseKeys {
         return keys
     }
 
+    /** Keys of the items that are collapsed right now — used to re-key state after a move. */
+    fun collapsedKeys(items: List<TodoItem>, fileName: String): Set<String> {
+        val keys = mutableSetOf<String>()
+        mapWithKeys(items, fileName) { item, itemKey ->
+            if (item.collapsed && item.children.isNotEmpty()) keys += itemKey
+            item
+        }
+        return keys
+    }
+
     /** Walks the whole tree, handing [transform] each item together with its key. */
     private fun mapWithKeys(
         items: List<TodoItem>,

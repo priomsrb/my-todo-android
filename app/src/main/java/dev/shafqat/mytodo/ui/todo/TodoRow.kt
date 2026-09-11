@@ -1,7 +1,10 @@
 package dev.shafqat.mytodo.ui.todo
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,6 +25,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -39,7 +44,8 @@ private val ChevronSize = 28.dp
  * One TODO row: drag handle, expand chevron, checkbox, text, delete.
  *
  * Ticked items render grayed out and struck through. A collapsed parent shows how many descendants
- * are hidden underneath it. The drag handle is inert until Phase 3.
+ * are hidden underneath it. The drag handle starts a reorder after a long press; while a row is
+ * being dragged it lifts with a shadow and its indent animates to the depth it would land at.
  */
 @Composable
 fun TodoRow(
@@ -49,20 +55,33 @@ fun TodoRow(
     onToggleCollapsed: (Boolean) -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    isDragging: Boolean = false,
+    dragHandleModifier: Modifier = Modifier,
 ) {
     val hasChildren = item.children.isNotEmpty()
+    // The indent animates so an indent/outdent during a drag reads as movement, not a jump.
+    val indent by animateDpAsState(targetValue = IndentPerLevel * depth, label = "indent")
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = IndentPerLevel * depth, end = 8.dp),
+            .shadow(if (isDragging) 6.dp else 0.dp, RoundedCornerShape(8.dp))
+            .background(
+                if (isDragging) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
+                RoundedCornerShape(8.dp),
+            )
+            .padding(start = indent, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = Icons.Default.DragIndicator,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.size(20.dp),
+            contentDescription = stringResource(R.string.drag_handle),
+            tint = if (isDragging) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.outline
+            },
+            modifier = dragHandleModifier.size(20.dp),
         )
 
         if (hasChildren) {

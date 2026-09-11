@@ -2,9 +2,9 @@
 
 A Google Keep-inspired Android TODO app whose data lives in plain markdown files.
 
-Current state: **Phase 2 complete** — lists are real markdown files, one per list, in a folder the
-user picks (app-private storage until they do), and nested items expand and collapse. No
-drag-and-drop or widget yet. See [TODO.md](TODO.md) for the roadmap.
+Current state: **Phase 3 complete** — lists are real markdown files, one per list, in a folder the
+user picks (app-private storage until they do); nested items expand and collapse, and rows can be
+dragged to reorder and re-nest. No widget yet. See [TODO.md](TODO.md) for the roadmap.
 
 ## Product invariants
 
@@ -100,6 +100,7 @@ app/src/main/java/dev/shafqat/mytodo/
   model/
     TodoItem.kt              tree node + flattenVisible/updateItem/addItem/removeItem helpers
     TodoList.kt              one named list, backed by one markdown file
+    TreeMove.kt              flatten/rebuild and moveSubtree — all of the drag maths
   data/
     TodoRepository.kt        interface the UI talks to
     MarkdownTodoRepository.kt  keeps the tree and the files in step; no Android APIs
@@ -115,7 +116,8 @@ app/src/main/java/dev/shafqat/mytodo/
   ui/
     navigation/MyTodoApp.kt  NavHost: lists → list/{listId} → settings
     lists/                   Keep-style grid of list cards
-    todo/                    one list: flattened rows, checkboxes, add/delete
+    todo/                    one list: flattened rows, checkboxes, add/delete,
+                             TodoDragState (drag, depth, auto-scroll)
     settings/                placeholder rows until Phase 1
     components/              shared composables (TextInputDialog)
     theme/                   Keep-ish palette, typography, note tints
@@ -124,6 +126,8 @@ app/src/test/java/dev/shafqat/mytodo/
   MarkdownTest.kt            parse/serialize round trips
   MarkdownTodoRepositoryTest.kt  storage behavior over a temp directory
   CollapseTest.kt            collapse keys and their persistence
+  TreeMoveTest.kt            the move maths, incl. exhaustive invariants
+  MoveItemTest.kt            moves reaching the file
 ```
 
 ## Conventions
@@ -140,6 +144,27 @@ app/src/test/java/dev/shafqat/mytodo/
 - Pure logic (tree ops, markdown parse/serialize) lives in `model/` or `data/` with no Android
   dependencies, so it is unit-testable on the JVM. Add tests there for every such change.
 - **Update `TODO.md` when a task lands** — tick its box and note anything the next phase needs.
+
+## How dragging works
+
+- **A drag is two numbers**: the index the row should land at among the visible rows, and the depth
+  it should nest at. `moveSubtree(itemId, targetIndex, targetDepth)` in `model/TreeMove.kt` consumes
+  exactly those, and everything else — new parent, new siblings — follows. All of that logic is pure
+  and exhaustively tested; keep it that way rather than moving tree maths into composables.
+- **`targetIndex` is an index into the tree with the dragged subtree already removed.** That is the
+  one coordinate convention to remember: it makes the dragged item's own starting index put it back
+  where it was, and it is why the preview and the committed move agree.
+- **`flattenForMove` strips an expanded item's children (they get their own rows) but keeps a
+  collapsed item's children (they do not).** That invariant is what lets `rebuildTree` be lossless
+  and a collapsed subtree be dragged as one unit.
+- **`allowedDepthRange` is the guard rail**: at most one deeper than the row above, never shallower
+  than the row below (which would re-parent it), never inside a collapsed parent (it would vanish).
+  `moveSubtree` clamps, so callers may pass whatever the finger suggests.
+- **The UI previews by applying the move.** `TodoListScreen` renders `moveSubtree(...)` of the
+  pending drag rather than maintaining a separate gap/placeholder, so what is on screen is always
+  exactly what a drop would produce.
+- **Moving invalidates collapse keys**, since they are paths. `moveItem` re-derives and re-persists
+  them for that file afterwards.
 
 ## How storage works
 

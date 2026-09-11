@@ -11,6 +11,7 @@ import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.addItem
 import dev.shafqat.mytodo.model.fileNameFor
+import dev.shafqat.mytodo.model.moveSubtree
 import dev.shafqat.mytodo.model.removeItem
 import dev.shafqat.mytodo.model.uniqueFileName
 import dev.shafqat.mytodo.model.updateItem
@@ -216,6 +217,18 @@ class MarkdownTodoRepository(
 
     override suspend fun deleteItem(listId: String, itemId: String) {
         mutate(listId) { items -> items.removeItem(itemId) }
+    }
+
+    override suspend fun moveItem(listId: String, itemId: String, targetIndex: Int, targetDepth: Int) {
+        mutate(listId) { items -> items.moveSubtree(itemId, targetIndex, targetDepth) }
+
+        // Collapse keys are paths, so a move invalidates them. Re-derive them from where the
+        // items ended up, or collapsed subtrees would spring open on the next reload.
+        val list = _lists.value.firstOrNull { it.id == listId } ?: return
+        collapseStore.replaceKeysForFile(
+            list.fileName,
+            CollapseKeys.collapsedKeys(list.items, list.fileName),
+        )
     }
 
     override suspend fun setItemCollapsed(listId: String, itemId: String, collapsed: Boolean) {

@@ -11,7 +11,7 @@
     <string name="file_format">File format</string>
     <string name="file_format_summary">Markdown · one file per list · tab-indented · - [ ] / - [X]</string>
     <string name="version">Version</string>
-    <string name="version_summary">0.3 — expand and collapse</string>
+    <string name="version_summary">0.4 — drag to reorder and re-nest</string>
     <string name="default_folder_label">App storage (internal)</string>
     <string name="use_default_folder">Use app storage instead</string>
     <string name="choose_folder">Choose folder</string>
@@ -30,4 +30,5 @@
     <string name="collapse_all">Collapse all</string>
     <string name="expand_all">Expand all</string>
     <string name="more">More</string>
+    <string name="drag_handle">Reorder</string>
 </resources>

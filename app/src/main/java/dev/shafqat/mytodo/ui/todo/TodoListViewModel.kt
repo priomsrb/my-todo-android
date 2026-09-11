@@ -39,6 +39,10 @@ class TodoListViewModel(
         viewModelScope.launch { repository.deleteItem(listId, itemId) }
     }
 
+    fun moveItem(itemId: String, targetIndex: Int, targetDepth: Int) {
+        viewModelScope.launch { repository.moveItem(listId, itemId, targetIndex, targetDepth) }
+    }
+
     fun setCollapsed(itemId: String, collapsed: Boolean) {
         viewModelScope.launch { repository.setItemCollapsed(listId, itemId, collapsed) }
     }

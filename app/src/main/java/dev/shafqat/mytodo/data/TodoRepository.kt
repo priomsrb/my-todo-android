@@ -36,6 +36,12 @@ interface TodoRepository {
     /** Removes an item together with its entire subtree. */
     suspend fun deleteItem(listId: String, itemId: String)
 
+    /**
+     * Moves an item, and everything under it, to [targetIndex] among the visible rows at
+     * [targetDepth]. Both are interpreted as described on [dev.shafqat.mytodo.model.moveSubtree].
+     */
+    suspend fun moveItem(listId: String, itemId: String, targetIndex: Int, targetDepth: Int)
+
     suspend fun setItemCollapsed(listId: String, itemId: String, collapsed: Boolean)
 
     /** Collapses or expands every item in the list that has children. */

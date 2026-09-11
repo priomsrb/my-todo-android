@@ -45,19 +45,22 @@ Each list is one `.md` file in a folder the user picks; the format is the one sp
 - [x] Collapse-all / expand-all in the list overflow menu
 - [x] Collapse follows a list through a rename and is forgotten when a list is deleted
 
-## Phase 3 — Drag and drop
+## Phase 3 — Drag and drop ✅
 
-The headline interaction: reorder vertically *and* re-nest horizontally, always moving the subtree.
+Reorder vertically *and* re-nest horizontally, always moving the subtree.
 
-- [ ] Long-press drag in `LazyColumn`, using the existing drag handle
-- [ ] Vertical reorder with live gap/placeholder feedback
-- [ ] Horizontal drag to indent/outdent; target depth follows the drag's x offset
-- [ ] Legal-depth rules: an item may nest at most one level deeper than the row above it
-- [ ] The dragged item carries all of its descendants
-- [ ] Auto-collapse the dragged subtree while dragging, restore on drop
-- [ ] Auto-scroll when dragging near the top/bottom edges
-- [ ] Haptics on pick-up and drop
-- [ ] Unit tests for the move logic (source index + target depth → new tree)
+- [x] Long-press the drag handle to start a reorder
+- [x] Live feedback: the row relocates into the slot it would land in, rather than floating over a
+      gap — the screen previews the pending move by applying `moveSubtree` to the tree
+- [x] Horizontal drag indents/outdents; target depth follows the drag's x offset
+- [x] Legal-depth rules in `allowedDepthRange`: at most one level deeper than the row above, never
+      shallower than the row below, never inside a collapsed parent
+- [x] The dragged item carries all of its descendants
+- [x] The dragged subtree auto-collapses while it travels and restores on drop
+- [x] Auto-scroll when dragging near the top/bottom edges, accelerating toward the edge
+- [x] Haptics on pick-up and drop
+- [x] Unit tests for the move logic, including exhaustive checks that no move ever loses,
+      duplicates or mis-nests an item
 
 ## Phase 4 — Keep polish
 
@@ -98,6 +101,8 @@ Two separate widgets, both Glance-based.
       name back off the result, but that path has only been exercised against a local directory
 - [ ] Verify the revoked-permission banner end to end: revoke access to the chosen folder (clear the
       provider's permission or remove the volume) and confirm settings offers to re-pick it
+- [ ] Consider a floating drag overlay: the dragged row currently jumps between slots rather than
+      following the finger continuously, which is simpler but less fluid than Keep
 - [ ] Editing an item's text forgets that it was collapsed (its `CollapseKeys` key changes).
       Re-key collapse state on rename if this proves annoying in practice
 - [ ] Conflict handling when a file changed on disk while edits were pending
