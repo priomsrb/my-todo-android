@@ -7,4 +7,22 @@
     <string name="new_item">Add item</string>
     <string name="back">Back</string>
     <string name="untitled_list">Untitled list</string>
+    <string name="todo_folder">Todo folder</string>
+    <string name="file_format">File format</string>
+    <string name="file_format_summary">Markdown · one file per list · tab-indented · - [ ] / - [X]</string>
+    <string name="version">Version</string>
+    <string name="version_summary">0.2 — markdown files</string>
+    <string name="default_folder_label">App storage (internal)</string>
+    <string name="use_default_folder">Use app storage instead</string>
+    <string name="choose_folder">Choose folder</string>
+    <string name="folder_unavailable">Your todo folder is no longer accessible. Pick it again to restore access.</string>
+    <string name="loading">Loading…</string>
+    <string name="no_lists">No lists yet — tap “New list”.</string>
+    <string name="rename_list">Rename list</string>
+    <string name="rename">Rename</string>
+    <string name="delete_list">Delete list</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete_list_title">Delete “%1$s”?</string>
+    <string name="delete_list_message">This deletes %1$s from your todo folder.</string>
 </resources>

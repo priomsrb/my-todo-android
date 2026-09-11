@@ -1,5 +1,6 @@
 package dev.shafqat.mytodo.ui.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -15,7 +16,8 @@ object Routes {
     const val SETTINGS = "settings"
     const val LIST_DETAIL = "list/{listId}"
 
-    fun listDetail(listId: String) = "list/$listId"
+    // List ids are filenames, so they must be encoded before going into a route.
+    fun listDetail(listId: String) = "list/" + Uri.encode(listId)
 }
 
 @Composable

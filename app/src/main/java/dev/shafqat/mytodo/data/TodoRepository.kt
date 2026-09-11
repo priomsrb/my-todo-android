@@ -7,12 +7,18 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * Source of truth for every TODO list.
  *
- * Phase 0 ships [InMemoryTodoRepository]; Phase 1 swaps in a markdown/SAF-backed implementation
- * behind this same interface, so no UI code has to change.
+ * Implemented by [MarkdownTodoRepository], which keeps the tree in step with one markdown file
+ * per list.
  */
 interface TodoRepository {
 
     val lists: StateFlow<List<TodoList>>
+
+    /** Whether the configured storage location can currently be read and written. */
+    val storageState: StateFlow<StorageState>
+
+    /** Re-reads the files, picking up changes made outside the app. */
+    suspend fun refresh()
 
     suspend fun createList(name: String): TodoList
 

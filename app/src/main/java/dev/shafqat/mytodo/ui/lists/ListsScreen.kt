@@ -2,7 +2,8 @@ package dev.shafqat.mytodo.ui.lists
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,6 +24,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,6 +33,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -49,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.shafqat.mytodo.R
+import dev.shafqat.mytodo.data.StorageState
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.doneCount
 import dev.shafqat.mytodo.model.flattenVisible
@@ -65,7 +72,10 @@ fun ListsScreen(
     viewModel: ListsViewModel = viewModel(),
 ) {
     val lists by viewModel.lists.collectAsStateWithLifecycle()
+    val storageState by viewModel.storageState.collectAsStateWithLifecycle()
     var showNewListDialog by remember { mutableStateOf(false) }
+    var listPendingRename by remember { mutableStateOf<TodoList?>(null) }
+    var listPendingDelete by remember { mutableStateOf<TodoList?>(null) }
 
     Scaffold(
         topBar = {
@@ -92,6 +102,23 @@ fun ListsScreen(
         },
     ) { innerPadding ->
         val tints = noteColors()
+        if (lists.isEmpty() && storageState !is StorageState.Loading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(innerPadding),
+            ) {
+                Text(
+                    text = stringResource(R.string.no_lists),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+            return@Scaffold
+        }
+
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 168.dp),
             modifier = Modifier
@@ -108,9 +135,41 @@ fun ListsScreen(
                     list = list,
                     tint = tint,
                     onClick = { onListClick(list.id) },
+                    onRename = { listPendingRename = list },
+                    onDelete = { listPendingDelete = list },
                 )
             }
         }
+    }
+
+    listPendingRename?.let { list ->
+        TextInputDialog(
+            title = stringResource(R.string.rename_list),
+            confirmLabel = stringResource(R.string.rename),
+            initialValue = list.name,
+            onConfirm = { name ->
+                viewModel.renameList(list.id, name)
+                listPendingRename = null
+            },
+            onDismiss = { listPendingRename = null },
+        )
+    }
+
+    listPendingDelete?.let { list ->
+        AlertDialog(
+            onDismissRequest = { listPendingDelete = null },
+            title = { Text(stringResource(R.string.delete_list_title, list.name)) },
+            text = { Text(stringResource(R.string.delete_list_message, list.fileName)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteList(list.id)
+                    listPendingDelete = null
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { listPendingDelete = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
     }
 
     if (showNewListDialog) {
@@ -126,12 +185,16 @@ fun ListsScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ListCard(
     list: TodoList,
     tint: Color,
     onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     // Only the first few rows preview on the card, as Keep does with long notes.
     val previewRows = list.items.flattenVisible().take(MAX_PREVIEW_ROWS)
     val hiddenCount = list.items.totalCount() - previewRows.size
@@ -141,9 +204,26 @@ private fun ListCard(
             .clip(RoundedCornerShape(12.dp))
             .background(tint)
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = { menuExpanded = true })
             .padding(14.dp),
     ) {
+        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.rename_list)) },
+                onClick = {
+                    menuExpanded = false
+                    onRename()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.delete_list)) },
+                onClick = {
+                    menuExpanded = false
+                    onDelete()
+                },
+            )
+        }
+
         Text(
             text = list.name,
             style = MaterialTheme.typography.titleMedium,

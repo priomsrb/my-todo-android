@@ -2,8 +2,9 @@
 
 A Google Keep-inspired Android TODO app whose data lives in plain markdown files.
 
-Current state: **Phase 0 skeleton** — it builds, installs and runs with an in-memory repository.
-No file IO, drag-and-drop, collapse or widget yet. See [TODO.md](TODO.md) for the roadmap.
+Current state: **Phase 1 complete** — lists are real markdown files, one per list, in a folder the
+user picks (app-private storage until they do). No drag-and-drop, collapse or widget yet.
+See [TODO.md](TODO.md) for the roadmap.
 
 ## Product invariants
 
@@ -100,8 +101,15 @@ app/src/main/java/dev/shafqat/mytodo/
     TodoItem.kt              tree node + flattenVisible/updateItem/addItem/removeItem helpers
     TodoList.kt              one named list, backed by one markdown file
   data/
-    TodoRepository.kt        interface — the seam the markdown/SAF store slots into
-    InMemoryTodoRepository.kt  Phase 0 implementation with sample data
+    TodoRepository.kt        interface the UI talks to
+    MarkdownTodoRepository.kt  keeps the tree and the files in step; no Android APIs
+    StorageState.kt          Ready / PermissionLost / Error / Loading
+    markdown/                MarkdownParser, MarkdownSerializer, MarkdownDocument
+    store/
+      TodoFileStore.kt       the only seam that knows where files physically live
+      LocalDirectoryStore.kt app-private default; also stands in for storage in tests
+      SafDirectoryStore.kt   a folder the user picked, via a persisted tree URI
+    settings/SettingsRepository.kt  DataStore: the todo folder URI
   ui/
     navigation/MyTodoApp.kt  NavHost: lists → list/{listId} → settings
     lists/                   Keep-style grid of list cards
@@ -109,7 +117,10 @@ app/src/main/java/dev/shafqat/mytodo/
     settings/                placeholder rows until Phase 1
     components/              shared composables (TextInputDialog)
     theme/                   Keep-ish palette, typography, note tints
-app/src/test/java/dev/shafqat/mytodo/TodoTreeTest.kt
+app/src/test/java/dev/shafqat/mytodo/
+  TodoTreeTest.kt            tree helpers
+  MarkdownTest.kt            parse/serialize round trips
+  MarkdownTodoRepositoryTest.kt  storage behavior over a temp directory
 ```
 
 ## Conventions
@@ -126,3 +137,23 @@ app/src/test/java/dev/shafqat/mytodo/TodoTreeTest.kt
 - Pure logic (tree ops, markdown parse/serialize) lives in `model/` or `data/` with no Android
   dependencies, so it is unit-testable on the JVM. Add tests there for every such change.
 - **Update `TODO.md` when a task lands** — tick its box and note anything the next phase needs.
+
+## How storage works
+
+- `MarkdownTodoRepository` owns the in-memory tree and writes it back through a `TodoFileStore`.
+  It contains no Android APIs on purpose, so all of its behavior is covered by JVM tests against a
+  `LocalDirectoryStore` pointed at a temp directory. Add tests there, not instrumented ones.
+- **Edits save on a 500ms debounce**, so a burst of typing is one write; `flushPendingSaves()` runs
+  from `MainActivity.onStop`. A rename or delete cancels that file's pending save first.
+- **`refresh()` runs from `MainActivity.onStart`** to pick up outside edits, and deliberately skips
+  any file with an unsaved edit so a reload cannot undo something just typed.
+- **Unparseable lines are preserved.** `MarkdownDocument.extraLines` keys them by the id of the item
+  they follow (`PREAMBLE` for lines before the first item), and the repository keeps that map per
+  file so a rewrite does not eat hand-written content. Blank lines are normalized away.
+- **Collapse never writes.** `setItemCollapsed` updates memory only — the file has no place for it.
+- **A failure becomes a `StorageState`, not a crash.** `SecurityException` means the folder
+  permission is gone (`PermissionLost`, surfaced as a settings banner offering to re-pick); anything
+  else becomes `Error`. The app never silently falls back to a different set of files.
+- **Filenames are the identity.** `fileNameFor` slugifies a name, `displayNameFor` reverses it, and
+  `uniqueFileName` de-duplicates. SAF providers may alter a name on create/rename, so both store
+  methods return the name the file actually got and callers must use it.

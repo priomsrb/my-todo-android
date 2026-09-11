@@ -16,25 +16,25 @@ Conventions and invariants live in [AGENTS.md](AGENTS.md). Tick boxes as work la
 - [x] Unit tests for the tree helpers
 - [x] `AGENTS.md` and `TODO.md`
 
-## Phase 1 — Markdown files + storage location
+## Phase 1 — Markdown files + storage location ✅
 
-The first phase that makes the app genuinely useful. Each list is one `.md` file in a folder the
-user picks; the format is the one specified in AGENTS.md.
+Each list is one `.md` file in a folder the user picks; the format is the one specified in AGENTS.md.
 
-- [ ] `MarkdownParser`: tab-indented `- [ ]` / `- [X]` → `List<TodoItem>`; tolerate space indents,
-      lowercase `x`, blank lines and stray text
-- [ ] `MarkdownSerializer`: tree → markdown, always tabs, `- [X]` uppercase
-- [ ] Round-trip unit tests, including a deeply nested file and a hand-messy file
-- [ ] Settings: folder picker via `ACTION_OPEN_DOCUMENT_TREE` + `takePersistableUriPermission`
-- [ ] Persist the folder URI in DataStore; show a friendly path in settings
-- [ ] `MarkdownTodoRepository` implementing `TodoRepository` over SAF `DocumentFile`s
-- [ ] One file per list; creating/renaming/deleting a list creates/renames/deletes its file
-- [ ] Derive a list's id from its filename, so it is stable across restarts — the launcher widget's
-      deep links (Phase 5b) and widget configs depend on that
-- [ ] Debounced autosave after edits (~500ms) with save-on-pause
-- [ ] Reload when a file changed underneath the app (on resume; `ContentObserver` if practical)
-- [ ] Handle a lost/revoked folder permission gracefully
-- [ ] Swap the app's repository from in-memory to markdown-backed
+- [x] `MarkdownParser`: tab-indented `- [ ]` / `- [X]` → `List<TodoItem>`; tolerates space indents
+      (any width), `*`/`+` bullets, lowercase `x`, blank lines and stray text
+- [x] `MarkdownSerializer`: tree → markdown, always tabs, `- [X]` uppercase
+- [x] Round-trip unit tests, including a 50-level file and a hand-messy file
+- [x] Settings: folder picker via `ACTION_OPEN_DOCUMENT_TREE` + `takePersistableUriPermission`
+- [x] Persist the folder URI in DataStore; show a friendly path in settings
+- [x] `MarkdownTodoRepository` over a `TodoFileStore` seam — `SafDirectoryStore` for a picked
+      folder, `LocalDirectoryStore` for the app-private default and for tests
+- [x] One file per list; creating/renaming/deleting a list creates/renames/deletes its file,
+      wired to a long-press menu on the home grid
+- [x] List ids are filenames, so they survive restarts (Phase 5b deep links depend on it)
+- [x] Debounced autosave (500ms) with a flush on `onStop`
+- [x] Reload on `onStart`, skipping files with edits not yet written
+- [x] Lost folder permission surfaces as a warning in settings instead of silently switching files
+- [x] Swap the app's repository from in-memory to markdown-backed
 
 ## Phase 2 — Expand / collapse
 
