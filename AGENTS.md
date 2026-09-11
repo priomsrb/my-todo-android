@@ -153,6 +153,11 @@ app/src/test/java/dev/shafqat/mytodo/
 - **Unparseable lines are preserved.** `MarkdownDocument.extraLines` keys them by the id of the item
   they follow (`PREAMBLE` for lines before the first item), and the repository keeps that map per
   file so a rewrite does not eat hand-written content. Blank lines are normalized away.
+- **Collapse state has its own DataStore file, and settings has another. Do not merge them.** A
+  DataStore write re-emits the entire preferences object, so when they shared a file every collapse
+  toggle looked like a folder change to `todoFolderUri` and sent the repository through a full
+  reload — visible as the list screen flashing empty. `todoFolderUri` is also
+  `distinctUntilChanged()`, and `attachStore` ignores an unchanged folder.
 - **Collapse never writes to the file.** `setItemCollapsed` updates memory and the `CollapseStore`;
   the markdown format has no place for it. Collapse state is keyed by `CollapseKeys` — the file name
   plus the *text path* down to the item — because `TodoItem.id` is a fresh UUID on every parse and

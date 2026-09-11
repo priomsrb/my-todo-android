@@ -35,6 +35,10 @@ class MyTodoApplication : Application() {
         )
     }
 
+    /** The folder currently attached, so an unchanged setting never triggers a reload. */
+    private var attachedFolderUri: String? = null
+    private var hasAttachedStore = false
+
     override fun onCreate() {
         super.onCreate()
         applicationScope.launch {
@@ -43,6 +47,12 @@ class MyTodoApplication : Application() {
     }
 
     private suspend fun attachStore(folderUri: String?) {
+        // Reloading clears the lists briefly, which the UI would show as an empty screen. Only do
+        // it when the folder has actually changed.
+        if (hasAttachedStore && folderUri == attachedFolderUri) return
+        attachedFolderUri = folderUri
+        hasAttachedStore = true
+
         if (folderUri == null) {
             // No folder chosen yet: keep lists in a directory the app owns, seeded on first run.
             repository.useStore(

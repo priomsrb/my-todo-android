@@ -7,15 +7,24 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
-internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 /** Persisted user settings. Currently just where the todo files live. */
 class SettingsRepository(private val context: Context) {
 
-    /** The SAF tree URI of the user's todo folder, or null while the app-private default is in use. */
-    val todoFolderUri: Flow<String?> = context.dataStore.data.map { it[TODO_FOLDER_URI] }
+    /**
+     * The SAF tree URI of the user's todo folder, or null while the app-private default is in use.
+     *
+     * Deliberately deduplicated: every DataStore write re-emits the whole preferences object, and
+     * collapse state shares this DataStore, so without this a collapse toggle would look like a
+     * folder change and send the repository through a full reload.
+     */
+    val todoFolderUri: Flow<String?> = context.dataStore.data
+        .map { it[TODO_FOLDER_URI] }
+        .distinctUntilChanged()
 
     suspend fun setTodoFolderUri(uri: String?) {
         context.dataStore.edit { preferences ->
