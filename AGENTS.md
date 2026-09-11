@@ -84,6 +84,33 @@ adb shell am start -n dev.shafqat.mytodo/.MainActivity
 
 Screenshot for visual checks: `adb exec-out screencap -p > /tmp/screen.png`.
 
+### Checking behaviour on a device
+
+Compose UI tests cover gesture and navigation wiring, but not rendering or real touch timing. For
+those, drive the emulator directly — no screenshots-by-eye needed:
+
+```bash
+adb shell uiautomator dump /sdcard/ui.xml    # then read bounds + content-desc from the XML
+```
+
+- **Find elements by their bounds**, not by guessing pixels: every row's drag handle carries
+  `content-desc="Reorder"`, checkboxes appear as `android.widget.CheckBox`, item text as `TextView`.
+- **Long-press drags need `input motionevent`**, not `input swipe`: `DOWN`, `sleep 0.8` (to clear the
+  long-press threshold), several `MOVE`s, then `UP`. A swipe starts moving immediately and never
+  triggers a long press.
+- **Inspect a screen mid-transition** by dumping the UI *while a touch is still held*, between the
+  `DOWN` and the `UP`.
+- **Sample colours instead of eyeballing them**: `adb exec-out screencap -p > f.png` then
+  `magick f.png -crop 1x1+540+1800 -format '%[pixel:p{0,0}]' info:`.
+- **Slow animations down** to catch mid-transition frames:
+  `adb shell settings put global animator_duration_scale 10` — Compose honours it. Put it back to
+  `1` afterwards, along with anything else you changed (`cmd uimode night ...`).
+- **Prove a fix by reproducing the bug first**: `git stash`, rebuild, reproduce, `git stash pop`,
+  rebuild, confirm it is gone. Three bugs were "fixed" and re-reported before this became habit.
+- The app may be pointed at a SAF folder rather than app-private storage — check
+  `run-as dev.shafqat.mytodo cat files/datastore/settings.preferences_pb`. Write test lists into
+  that folder with an obvious name and delete them afterwards; do not disturb real lists.
+
 **JDK note:** the machine default is JDK 25 while JDK 17 is also installed. Robolectric needs
 several `--add-opens` / `--add-exports` flags to run on it at all; those are set on the `Test` tasks
 in `app/build.gradle.kts` — removing them breaks every UI test with an `IllegalAccessException`.
