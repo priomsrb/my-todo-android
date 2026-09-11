@@ -37,4 +37,7 @@ interface TodoRepository {
     suspend fun deleteItem(listId: String, itemId: String)
 
     suspend fun setItemCollapsed(listId: String, itemId: String, collapsed: Boolean)
+
+    /** Collapses or expands every item in the list that has children. */
+    suspend fun setAllCollapsed(listId: String, collapsed: Boolean)
 }

@@ -11,7 +11,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,6 +70,30 @@ fun TodoListScreen(
                         )
                     }
                 },
+                actions = {
+                    var menuExpanded by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more))
+                    }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.collapse_all)) },
+                            leadingIcon = { Icon(Icons.Default.UnfoldLess, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                viewModel.setAllCollapsed(true)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.expand_all)) },
+                            leadingIcon = { Icon(Icons.Default.UnfoldMore, contentDescription = null) },
+                            onClick = {
+                                menuExpanded = false
+                                viewModel.setAllCollapsed(false)
+                            },
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
@@ -105,6 +134,9 @@ fun TodoListScreen(
                             item = row.item,
                             depth = row.depth,
                             onToggleDone = { done -> viewModel.setDone(row.item.id, done) },
+                            onToggleCollapsed = { collapsed ->
+                                viewModel.setCollapsed(row.item.id, collapsed)
+                            },
                             onDelete = { viewModel.deleteItem(row.item.id) },
                         )
                     }

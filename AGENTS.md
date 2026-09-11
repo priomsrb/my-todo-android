@@ -2,9 +2,9 @@
 
 A Google Keep-inspired Android TODO app whose data lives in plain markdown files.
 
-Current state: **Phase 1 complete** — lists are real markdown files, one per list, in a folder the
-user picks (app-private storage until they do). No drag-and-drop, collapse or widget yet.
-See [TODO.md](TODO.md) for the roadmap.
+Current state: **Phase 2 complete** — lists are real markdown files, one per list, in a folder the
+user picks (app-private storage until they do), and nested items expand and collapse. No
+drag-and-drop or widget yet. See [TODO.md](TODO.md) for the roadmap.
 
 ## Product invariants
 
@@ -105,11 +105,13 @@ app/src/main/java/dev/shafqat/mytodo/
     MarkdownTodoRepository.kt  keeps the tree and the files in step; no Android APIs
     StorageState.kt          Ready / PermissionLost / Error / Loading
     markdown/                MarkdownParser, MarkdownSerializer, MarkdownDocument
+    collapse/                CollapseKeys (stable item identity) + CollapseStore
     store/
       TodoFileStore.kt       the only seam that knows where files physically live
       LocalDirectoryStore.kt app-private default; also stands in for storage in tests
       SafDirectoryStore.kt   a folder the user picked, via a persisted tree URI
-    settings/SettingsRepository.kt  DataStore: the todo folder URI
+    settings/                DataStore: SettingsRepository (folder URI),
+                             DataStoreCollapseStore (collapse state)
   ui/
     navigation/MyTodoApp.kt  NavHost: lists → list/{listId} → settings
     lists/                   Keep-style grid of list cards
@@ -121,6 +123,7 @@ app/src/test/java/dev/shafqat/mytodo/
   TodoTreeTest.kt            tree helpers
   MarkdownTest.kt            parse/serialize round trips
   MarkdownTodoRepositoryTest.kt  storage behavior over a temp directory
+  CollapseTest.kt            collapse keys and their persistence
 ```
 
 ## Conventions
@@ -150,7 +153,11 @@ app/src/test/java/dev/shafqat/mytodo/
 - **Unparseable lines are preserved.** `MarkdownDocument.extraLines` keys them by the id of the item
   they follow (`PREAMBLE` for lines before the first item), and the repository keeps that map per
   file so a rewrite does not eat hand-written content. Blank lines are normalized away.
-- **Collapse never writes.** `setItemCollapsed` updates memory only — the file has no place for it.
+- **Collapse never writes to the file.** `setItemCollapsed` updates memory and the `CollapseStore`;
+  the markdown format has no place for it. Collapse state is keyed by `CollapseKeys` — the file name
+  plus the *text path* down to the item — because `TodoItem.id` is a fresh UUID on every parse and
+  could never survive a reload. Editing an item's text therefore forgets its collapse, which is the
+  intended trade-off: better to forget than to collapse the wrong item.
 - **A failure becomes a `StorageState`, not a crash.** `SecurityException` means the folder
   permission is gone (`PermissionLost`, surfaced as a settings banner offering to re-pick); anything
   else becomes `Error`. The app never silently falls back to a different set of files.

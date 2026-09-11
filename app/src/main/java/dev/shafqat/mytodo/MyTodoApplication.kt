@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import dev.shafqat.mytodo.data.MarkdownTodoRepository
+import dev.shafqat.mytodo.data.settings.DataStoreCollapseStore
 import dev.shafqat.mytodo.data.settings.SettingsRepository
 import dev.shafqat.mytodo.data.store.LocalDirectoryStore
 import dev.shafqat.mytodo.data.store.SafDirectoryStore
@@ -27,7 +28,11 @@ class MyTodoApplication : Application() {
     val settings: SettingsRepository by lazy { SettingsRepository(this) }
 
     val repository: MarkdownTodoRepository by lazy {
-        MarkdownTodoRepository(scope = applicationScope, ioDispatcher = Dispatchers.IO)
+        MarkdownTodoRepository(
+            scope = applicationScope,
+            ioDispatcher = Dispatchers.IO,
+            collapseStore = DataStoreCollapseStore(this),
+        )
     }
 
     override fun onCreate() {

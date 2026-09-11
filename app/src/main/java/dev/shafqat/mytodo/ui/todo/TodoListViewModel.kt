@@ -42,4 +42,8 @@ class TodoListViewModel(
     fun setCollapsed(itemId: String, collapsed: Boolean) {
         viewModelScope.launch { repository.setItemCollapsed(listId, itemId, collapsed) }
     }
+
+    fun setAllCollapsed(collapsed: Boolean) {
+        viewModelScope.launch { repository.setAllCollapsed(listId, collapsed) }
+    }
 }

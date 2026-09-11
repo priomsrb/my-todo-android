@@ -1,5 +1,8 @@
 package dev.shafqat.mytodo.data
 
+import dev.shafqat.mytodo.data.collapse.CollapseKeys
+import dev.shafqat.mytodo.data.collapse.CollapseStore
+import dev.shafqat.mytodo.data.collapse.InMemoryCollapseStore
 import dev.shafqat.mytodo.data.markdown.MarkdownDocument
 import dev.shafqat.mytodo.data.markdown.MarkdownParser
 import dev.shafqat.mytodo.data.markdown.MarkdownSerializer
@@ -39,6 +42,7 @@ class MarkdownTodoRepository(
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
     private val autosaveDelayMillis: Long = DEFAULT_AUTOSAVE_DELAY_MILLIS,
+    private val collapseStore: CollapseStore = InMemoryCollapseStore(),
 ) : TodoRepository {
 
     private val _lists = MutableStateFlow<List<TodoList>>(emptyList())
@@ -174,6 +178,7 @@ class MarkdownTodoRepository(
         withStore(store) {
             val actualName = fileMutex.withLock { store.rename(current.fileName, newFileName) }
             documents[actualName] = documents.remove(current.fileName) ?: MarkdownDocument()
+            collapseStore.renameFile(current.fileName, actualName)
             _lists.update { lists ->
                 lists.map { if (it.id == listId) it.copy(fileName = actualName) else it }
                     .sortedBy { it.fileName }
@@ -189,6 +194,7 @@ class MarkdownTodoRepository(
         withStore(store) {
             fileMutex.withLock { store.delete(current.fileName) }
             documents.remove(current.fileName)
+            collapseStore.replaceKeysForFile(current.fileName, emptySet())
             _lists.update { lists -> lists.filterNot { it.id == listId } }
             _storageState.value = StorageState.Ready(store.label, _lists.value.size)
         }
@@ -213,16 +219,38 @@ class MarkdownTodoRepository(
     }
 
     override suspend fun setItemCollapsed(listId: String, itemId: String, collapsed: Boolean) {
-        // Collapse is UI-only state and never reaches the file, so this deliberately skips saving.
+        // Collapse never reaches the markdown file; it is remembered in the collapse store instead,
+        // so this deliberately skips scheduling a save.
+        val list = _lists.value.firstOrNull { it.id == listId } ?: return
         _lists.update { lists ->
-            lists.map { list ->
-                if (list.id != listId) {
-                    list
+            lists.map { candidate ->
+                if (candidate.id != listId) {
+                    candidate
                 } else {
-                    list.copy(items = list.items.updateItem(itemId) { it.copy(collapsed = collapsed) })
+                    candidate.copy(items = candidate.items.updateItem(itemId) { it.copy(collapsed = collapsed) })
                 }
             }
         }
+
+        CollapseKeys.keyOf(list.items, list.fileName, itemId)?.let { key ->
+            collapseStore.setCollapsed(key, collapsed)
+        }
+    }
+
+    override suspend fun setAllCollapsed(listId: String, collapsed: Boolean) {
+        val list = _lists.value.firstOrNull { it.id == listId } ?: return
+        val keys = if (collapsed) CollapseKeys.collapsibleKeys(list.items, list.fileName) else emptySet()
+
+        _lists.update { lists ->
+            lists.map { candidate ->
+                if (candidate.id != listId) {
+                    candidate
+                } else {
+                    candidate.copy(items = CollapseKeys.applyTo(candidate.items, candidate.fileName, keys))
+                }
+            }
+        }
+        collapseStore.replaceKeysForFile(list.fileName, keys)
     }
 
     private fun mutate(listId: String, transform: (List<TodoItem>) -> List<TodoItem>) {
@@ -264,7 +292,9 @@ class MarkdownTodoRepository(
     private suspend fun readList(store: TodoFileStore, fileName: String): TodoList {
         val document = MarkdownParser.parse(withContext(ioDispatcher) { store.read(fileName) })
         documents[fileName] = document
-        return TodoList(fileName = fileName, items = document.items)
+        // Collapse state is remembered outside the file, so re-apply it to what was just parsed.
+        val items = CollapseKeys.applyTo(document.items, fileName, collapseStore.collapsedKeys())
+        return TodoList(fileName = fileName, items = items)
     }
 
     private suspend fun createWelcomeList(store: TodoFileStore) {

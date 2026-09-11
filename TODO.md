@@ -36,12 +36,14 @@ Each list is one `.md` file in a folder the user picks; the format is the one sp
 - [x] Lost folder permission surfaces as a warning in settings instead of silently switching files
 - [x] Swap the app's repository from in-memory to markdown-backed
 
-## Phase 2 — Expand / collapse
+## Phase 2 — Expand / collapse ✅
 
-- [ ] Chevron on every item with children; tap toggles `collapsed`
-- [ ] Show a descendant count on collapsed parents
-- [ ] Persist collapse state locally, keyed by item id — never written into the `.md`
-- [ ] Collapse-all / expand-all in the list overflow menu
+- [x] Chevron on every item with children; tap toggles `collapsed`
+- [x] Collapsed parents show how many descendants are hidden
+- [x] Persist collapse state locally — **keyed by the item's text path, not its id**: ids are
+      UUIDs regenerated on every parse, so they cannot survive a reload. See `CollapseKeys`
+- [x] Collapse-all / expand-all in the list overflow menu
+- [x] Collapse follows a list through a rename and is forgotten when a list is deleted
 
 ## Phase 3 — Drag and drop
 
@@ -96,6 +98,8 @@ Two separate widgets, both Glance-based.
       name back off the result, but that path has only been exercised against a local directory
 - [ ] Verify the revoked-permission banner end to end: revoke access to the chosen folder (clear the
       provider's permission or remove the volume) and confirm settings offers to re-pick it
+- [ ] Editing an item's text forgets that it was collapsed (its `CollapseKeys` key changes).
+      Re-key collapse state on rename if this proves annoying in practice
 - [ ] Conflict handling when a file changed on disk while edits were pending
 - [ ] Undo/redo stack for structural edits
 - [ ] Sort options (manual, alphabetical, completed last)
