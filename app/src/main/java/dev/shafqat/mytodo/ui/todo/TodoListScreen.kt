@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -148,6 +149,14 @@ fun TodoListScreen(
                     contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
                 ) {
                     itemsIndexed(rows, key = { _, row -> row.item.id }) { index, row ->
+                        // pointerInput is keyed on the item id alone, so that reordering the list
+                        // never cancels an in-flight drag. That also means its gesture block is not
+                        // recreated when the row moves, so it must not capture the index and depth
+                        // directly — it would keep whichever values the row had when it was first
+                        // composed, and picking the row up later would fling it back there.
+                        val currentIndex by rememberUpdatedState(index)
+                        val currentDepth by rememberUpdatedState(row.depth)
+
                         TodoRow(
                             item = row.item,
                             depth = row.depth,
@@ -155,7 +164,7 @@ fun TodoListScreen(
                             dragHandleModifier = Modifier.pointerInput(row.item.id) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = {
-                                        dragState.onDragStart(row.item.id, index, row.depth)
+                                        dragState.onDragStart(row.item.id, currentIndex, currentDepth)
                                     },
                                     onDrag = { change, amount ->
                                         change.consume()

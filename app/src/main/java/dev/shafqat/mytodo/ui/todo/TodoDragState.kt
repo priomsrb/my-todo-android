@@ -97,20 +97,26 @@ class TodoDragState(
     private var pointerY = 0f
     private var startDepth = 0
     private var horizontalDrag = 0f
-    private var travelled = 0f
+    private var startPointerY = 0f
     private var autoScrollJob: Job? = null
 
-    /** Auto-scroll stays off until the finger has actually moved; see [AutoScrollActivationDistance]. */
-    private val hasMoved: Boolean get() = travelled >= activationDistancePx
+    /**
+     * Auto-scroll stays off until the finger has actually moved away from where it was put down;
+     * see [AutoScrollActivationDistance]. Measured as displacement rather than distance travelled,
+     * so a tremor during a long hold never adds up to a move.
+     */
+    private val hasMoved: Boolean
+        get() = kotlin.math.abs(horizontalDrag) + kotlin.math.abs(pointerY - startPointerY) >=
+            activationDistancePx
 
     val isDragging: Boolean get() = draggedItemId != null
 
     fun onDragStart(itemId: String, rowIndex: Int, depth: Int) {
         val row = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == rowIndex }
         pointerY = row?.let { it.offset + it.size / 2f } ?: 0f
+        startPointerY = pointerY
         startDepth = depth
         horizontalDrag = 0f
-        travelled = 0f
 
         draggedItemId = itemId
         targetIndex = rowIndex
@@ -125,7 +131,6 @@ class TodoDragState(
 
         pointerY += deltaY
         horizontalDrag += deltaX
-        travelled += kotlin.math.abs(deltaX) + kotlin.math.abs(deltaY)
 
         targetDepth = startDepth + (horizontalDrag / indentPx).roundToInt()
         updateTargetIndex()
@@ -149,7 +154,6 @@ class TodoDragState(
         autoScrollJob = null
         draggedItemId = null
         horizontalDrag = 0f
-        travelled = 0f
     }
 
     /**

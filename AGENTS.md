@@ -165,6 +165,11 @@ app/src/test/java/dev/shafqat/mytodo/
   exactly what a drop would produce.
 - **Moving invalidates collapse keys**, since they are paths. `moveItem` re-derives and re-persists
   them for that file afterwards.
+- **The drag gesture must not capture the row's index or depth.** `pointerInput` is keyed on the
+  item id alone, deliberately, so reordering the list cannot cancel an in-flight drag — which also
+  means its gesture block is never recreated when a row moves. Read index and depth through
+  `rememberUpdatedState`; capturing them directly makes a row that has been moved fling back to
+  wherever it sat when it was first composed, the moment it is picked up again.
 - **Auto-scroll only engages once the finger has travelled.** Picking up a row that already sits
   inside the edge band used to scroll the list while the finger was still, and since each scroll
   re-reads the row under the finger, the item walked up the list on its own. `autoScrollSpeed` is
