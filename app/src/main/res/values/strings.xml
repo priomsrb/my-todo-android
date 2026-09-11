@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">My Todo</string>
+    <string name="lists_title">My Todo</string>
+    <string name="settings_title">Settings</string>
+    <string name="new_list">New list</string>
+    <string name="new_item">Add item</string>
+    <string name="back">Back</string>
+    <string name="untitled_list">Untitled list</string>
+</resources>
