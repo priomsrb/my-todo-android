@@ -165,6 +165,10 @@ app/src/test/java/dev/shafqat/mytodo/
   exactly what a drop would produce.
 - **Moving invalidates collapse keys**, since they are paths. `moveItem` re-derives and re-persists
   them for that file afterwards.
+- **Auto-scroll only engages once the finger has travelled.** Picking up a row that already sits
+  inside the edge band used to scroll the list while the finger was still, and since each scroll
+  re-reads the row under the finger, the item walked up the list on its own. `autoScrollSpeed` is
+  pure and tested — keep the decision there rather than inline in the frame loop.
 
 ## How storage works
 

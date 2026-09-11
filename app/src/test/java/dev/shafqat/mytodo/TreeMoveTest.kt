@@ -184,6 +184,45 @@ class TreeMoveTest {
     }
 
     @Test
+    fun `picking any item up and dropping it without moving changes nothing`() {
+        // This is what the UI does on pick-up: it previews moveSubtree at the item's own index and
+        // depth. If that were not the identity, a row would visibly jump the moment it was grabbed.
+        val trees = listOf(
+            tree,
+            tree.map { if (it.id == "A") it.copy(collapsed = true) else it },
+            listOf(
+                TodoItem(id = "P", text = "P", collapsed = true, children = listOf(TodoItem(id = "p1", text = "p1"))),
+                TodoItem(id = "Q", text = "Q", children = listOf(TodoItem(id = "q1", text = "q1"))),
+                TodoItem(id = "R", text = "R"),
+            ),
+            listOf(
+                TodoItem(
+                    id = "deep", text = "deep",
+                    children = listOf(
+                        TodoItem(
+                            id = "deeper", text = "deeper",
+                            children = listOf(TodoItem(id = "deepest", text = "deepest")),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        for (candidate in trees) {
+            for (row in candidate.flattenVisible()) {
+                val index = candidate.visibleIndexOf(row.item.id)
+                val settled = candidate.moveSubtree(row.item.id, index, row.depth)
+
+                assertEquals(
+                    "picking up ${row.item.id} at index $index depth ${row.depth} moved it",
+                    candidate.outline(),
+                    settled.outline(),
+                )
+            }
+        }
+    }
+
+    @Test
     fun `no item is ever lost or duplicated by a move`() {
         val ids = tree.flattenVisible().map { it.item.id }
 
