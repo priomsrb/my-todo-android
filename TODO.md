@@ -91,6 +91,11 @@ Two separate widgets, both Glance-based.
 
 ## Phase 6 — Robustness and extras
 
+- [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers
+      may append or change an extension. `SafDirectoryStore.create`/`rename` already read the real
+      name back off the result, but that path has only been exercised against a local directory
+- [ ] Verify the revoked-permission banner end to end: revoke access to the chosen folder (clear the
+      provider's permission or remove the volume) and confirm settings offers to re-pick it
 - [ ] Conflict handling when a file changed on disk while edits were pending
 - [ ] Undo/redo stack for structural edits
 - [ ] Sort options (manual, alphabetical, completed last)
