@@ -175,6 +175,17 @@ app/src/test/java/dev/shafqat/mytodo/
   re-reads the row under the finger, the item walked up the list on its own. `autoScrollSpeed` is
   pure and tested — keep the decision there rather than inline in the frame loop.
 
+## Navigation
+
+- **Every destination goes through `Screen()`**, which ignores touches until its `NavBackStackEntry`
+  reaches `RESUMED`. While a screen fades in or out, both destinations are composed and the outgoing
+  one still accepts touches, so a fast tap after backing out of a list used to land on the old
+  screen — ticking whatever item sat under the finger and not opening the list that was tapped.
+  Navigation resumes an entry only once its animation ends, which is why the lifecycle state is the
+  signal. A tap during a transition is deliberately dropped rather than redirected.
+- Screen transitions are short (180ms) so a screen settles quickly under an impatient finger; the
+  navigation-compose default is several times longer.
+
 ## How storage works
 
 - `MarkdownTodoRepository` owns the in-memory tree and writes it back through a `TodoFileStore`.

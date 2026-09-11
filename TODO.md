@@ -101,8 +101,8 @@ Two separate widgets, both Glance-based.
       name back off the result, but that path has only been exercised against a local directory
 - [ ] Verify the revoked-permission banner end to end: revoke access to the chosen folder (clear the
       provider's permission or remove the volume) and confirm settings offers to re-pick it
-- [ ] Add Compose UI tests (Robolectric or instrumented). Two drag bugs in a row lived in the UI
-      layer, where the JVM tests cannot reach; both were found by hand on a device
+- [ ] Add Compose UI tests (Robolectric or instrumented). Three UI-layer bugs so far (two drag, one
+      navigation) were invisible to the JVM tests and only found by driving a device
 - [ ] Consider a floating drag overlay: the dragged row currently jumps between slots rather than
       following the finger continuously, which is simpler but less fluid than Keep
 - [ ] Editing an item's text forgets that it was collapsed (its `CollapseKeys` key changes).
