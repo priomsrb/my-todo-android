@@ -27,6 +27,23 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        // Compose UI tests run on the JVM through Robolectric, so they need real resources.
+        unitTests.isIncludeAndroidResources = true
+    }
+}
+
+// Robolectric reaches into JDK internals that are closed off by default on modern JVMs
+// (the machine default here is JDK 25). Without these it cannot even start a test.
+tasks.withType<Test>().configureEach {
+    jvmArgs(
+        "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "--add-opens=java.base/java.net=ALL-UNNAMED",
+        "--add-opens=java.base/java.security=ALL-UNNAMED",
+    )
 }
 
 dependencies {
@@ -49,4 +66,10 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

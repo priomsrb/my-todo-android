@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -24,7 +26,7 @@ import dev.shafqat.mytodo.ui.settings.SettingsScreen
 import dev.shafqat.mytodo.ui.todo.TodoListScreen
 
 /** How long a screen takes to fade in or out. Short, so screens settle quickly under a fast tap. */
-private const val ScreenTransitionMillis = 180
+internal const val ScreenTransitionMillis = 180
 
 object Routes {
     const val LISTS = "lists"
@@ -39,36 +41,44 @@ object Routes {
 fun MyTodoApp() {
     val navController = rememberNavController()
 
-    NavHost(
-        navController = navController,
-        startDestination = Routes.LISTS,
-        enterTransition = { fadeIn(tween(ScreenTransitionMillis)) },
-        exitTransition = { fadeOut(tween(ScreenTransitionMillis)) },
-        popEnterTransition = { fadeIn(tween(ScreenTransitionMillis)) },
-        popExitTransition = { fadeOut(tween(ScreenTransitionMillis)) },
+    // Screens cross-fade, so both are briefly translucent and whatever sits behind them shows
+    // through. Without a surface in the app's own background colour that is the bare window, which
+    // reads as a flash every time a screen changes.
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
     ) {
-        composable(Routes.LISTS) { entry ->
-            Screen(entry) {
-                ListsScreen(
-                    onListClick = { listId -> navController.navigate(Routes.listDetail(listId)) },
-                    onSettingsClick = { navController.navigate(Routes.SETTINGS) },
-                )
+        NavHost(
+            navController = navController,
+            startDestination = Routes.LISTS,
+            enterTransition = { fadeIn(tween(ScreenTransitionMillis)) },
+            exitTransition = { fadeOut(tween(ScreenTransitionMillis)) },
+            popEnterTransition = { fadeIn(tween(ScreenTransitionMillis)) },
+            popExitTransition = { fadeOut(tween(ScreenTransitionMillis)) },
+        ) {
+            composable(Routes.LISTS) { entry ->
+                Screen(entry) {
+                    ListsScreen(
+                        onListClick = { listId -> navController.navigate(Routes.listDetail(listId)) },
+                        onSettingsClick = { navController.navigate(Routes.SETTINGS) },
+                    )
+                }
             }
-        }
-        composable(
-            route = Routes.LIST_DETAIL,
-            arguments = listOf(navArgument("listId") { type = NavType.StringType }),
-        ) { entry ->
-            Screen(entry) {
-                TodoListScreen(
-                    listId = requireNotNull(entry.arguments?.getString("listId")),
-                    onBack = { navController.popBackStack() },
-                )
+            composable(
+                route = Routes.LIST_DETAIL,
+                arguments = listOf(navArgument("listId") { type = NavType.StringType }),
+            ) { entry ->
+                Screen(entry) {
+                    TodoListScreen(
+                        listId = requireNotNull(entry.arguments?.getString("listId")),
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
-        }
-        composable(Routes.SETTINGS) { entry ->
-            Screen(entry) {
-                SettingsScreen(onBack = { navController.popBackStack() })
+            composable(Routes.SETTINGS) { entry ->
+                Screen(entry) {
+                    SettingsScreen(onBack = { navController.popBackStack() })
+                }
             }
         }
     }
@@ -83,7 +93,7 @@ fun MyTodoApp() {
  * list that was tapped.
  */
 @Composable
-private fun Screen(entry: NavBackStackEntry, content: @Composable () -> Unit) {
+internal fun Screen(entry: NavBackStackEntry, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()

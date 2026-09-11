@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FBBC04</color>
+    <!-- Must match KeepBackground in ui/theme/Color.kt: it is what shows through while screens
+         cross-fade, and behind the app before Compose has drawn anything. -->
+    <color name="window_background">#FAFAFA</color>
 </resources>

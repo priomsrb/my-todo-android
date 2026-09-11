@@ -68,7 +68,7 @@ refuse to compile against 36.
 
 ```bash
 ./gradlew :app:assembleDebug          # build the debug APK
-./gradlew :app:testDebugUnitTest      # JVM unit tests (tree + markdown logic)
+./gradlew :app:testDebugUnitTest      # all tests: pure logic + Compose UI (Robolectric)
 ./gradlew :app:installDebug           # install onto a running device/emulator
 ./gradlew :app:lintDebug              # Android lint
 ```
@@ -84,8 +84,10 @@ adb shell am start -n dev.shafqat.mytodo/.MainActivity
 
 Screenshot for visual checks: `adb exec-out screencap -p > /tmp/screen.png`.
 
-**JDK note:** the machine default is JDK 25 while JDK 17 is also installed. If Gradle or AGP
-rejects the JVM it is running on, pin it in `gradle.properties`:
+**JDK note:** the machine default is JDK 25 while JDK 17 is also installed. Robolectric needs
+several `--add-opens` / `--add-exports` flags to run on it at all; those are set on the `Test` tasks
+in `app/build.gradle.kts` — removing them breaks every UI test with an `IllegalAccessException`.
+If Gradle or AGP rejects the JVM it is running on, pin it in `gradle.properties`:
 
 ```properties
 org.gradle.java.home=/path/to/jdk-17
@@ -128,6 +130,9 @@ app/src/test/java/dev/shafqat/mytodo/
   CollapseTest.kt            collapse keys and their persistence
   TreeMoveTest.kt            the move maths, incl. exhaustive invariants
   MoveItemTest.kt            moves reaching the file
+  AutoScrollTest.kt          when a drag scrolls the list
+  TodoItemListUiTest.kt      Compose: dragging rows (Robolectric)
+  NavigationTransitionUiTest.kt  Compose: taps during screen transitions
 ```
 
 ## Conventions
@@ -185,6 +190,11 @@ app/src/test/java/dev/shafqat/mytodo/
   signal. A tap during a transition is deliberately dropped rather than redirected.
 - Screen transitions are short (180ms) so a screen settles quickly under an impatient finger; the
   navigation-compose default is several times longer.
+- **The NavHost sits on a `Surface` in the theme background colour, and the window background is
+  `@color/window_background` with a `values-night` variant.** Cross-fading screens are both briefly
+  translucent, so whatever is behind them shows through: with the old hardcoded white window
+  background that was a bright flash on every navigation in dark mode. Keep those colours matching
+  `KeepBackground` / `KeepBackgroundDark` in `ui/theme/Color.kt`.
 
 ## How storage works
 

@@ -3,13 +3,8 @@ package dev.shafqat.mytodo.ui.todo
 import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -31,11 +26,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
@@ -45,9 +38,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewmodel.CreationExtras
 import dev.shafqat.mytodo.R
-import dev.shafqat.mytodo.model.flattenVisible
-import dev.shafqat.mytodo.model.moveSubtree
-import dev.shafqat.mytodo.model.updateItem
 import dev.shafqat.mytodo.ui.components.TextInputDialog
 
 /** One list of TODOs, rendered as a flat lazy column of recursively-indented rows. */
@@ -62,8 +52,6 @@ fun TodoListScreen(
     ),
 ) {
     val list by viewModel.list.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
-    val dragState = rememberTodoDragState(listState)
     var showAddItemDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -118,16 +106,6 @@ fun TodoListScreen(
         },
     ) { innerPadding ->
         val items = list?.items.orEmpty()
-        val draggedId = dragState.draggedItemId
-        val previewItems = if (draggedId == null) {
-            items
-        } else {
-            // Collapsing the dragged item keeps its descendants out of the way while it travels,
-            // and moveSubtree shows it exactly where it would land, indentation included.
-            items.updateItem(draggedId) { it.copy(collapsed = true) }
-                .moveSubtree(draggedId, dragState.targetIndex, dragState.targetDepth)
-        }
-        val rows = previewItems.flattenVisible()
 
         Box(
             modifier = Modifier
@@ -135,55 +113,21 @@ fun TodoListScreen(
                 .background(MaterialTheme.colorScheme.background)
                 .padding(innerPadding),
         ) {
-            if (rows.isEmpty()) {
+            if (items.isEmpty()) {
                 Text(
-                    text = "Nothing here yet — tap “Add item”.",
+                    text = stringResource(R.string.list_empty),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.Center),
                 )
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
-                ) {
-                    itemsIndexed(rows, key = { _, row -> row.item.id }) { index, row ->
-                        // pointerInput is keyed on the item id alone, so that reordering the list
-                        // never cancels an in-flight drag. That also means its gesture block is not
-                        // recreated when the row moves, so it must not capture the index and depth
-                        // directly — it would keep whichever values the row had when it was first
-                        // composed, and picking the row up later would fling it back there.
-                        val currentIndex by rememberUpdatedState(index)
-                        val currentDepth by rememberUpdatedState(row.depth)
-
-                        TodoRow(
-                            item = row.item,
-                            depth = row.depth,
-                            isDragging = row.item.id == draggedId,
-                            dragHandleModifier = Modifier.pointerInput(row.item.id) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = {
-                                        dragState.onDragStart(row.item.id, currentIndex, currentDepth)
-                                    },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        dragState.onDrag(amount.x, amount.y)
-                                    },
-                                    onDragEnd = {
-                                        dragState.onDragEnd(viewModel::moveItem)
-                                    },
-                                    onDragCancel = { dragState.onDragCancel() },
-                                )
-                            },
-                            onToggleDone = { done -> viewModel.setDone(row.item.id, done) },
-                            onToggleCollapsed = { collapsed ->
-                                viewModel.setCollapsed(row.item.id, collapsed)
-                            },
-                            onDelete = { viewModel.deleteItem(row.item.id) },
-                        )
-                    }
-                }
+                TodoItemList(
+                    items = items,
+                    onToggleDone = viewModel::setDone,
+                    onToggleCollapsed = viewModel::setCollapsed,
+                    onDelete = viewModel::deleteItem,
+                    onMove = viewModel::moveItem,
+                )
             }
         }
     }

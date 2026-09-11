@@ -62,6 +62,14 @@ Reorder vertically *and* re-nest horizontally, always moving the subtree.
 - [x] Unit tests for the move logic, including exhaustive checks that no move ever loses,
       duplicates or mis-nests an item
 
+## Testing infrastructure ✅
+
+- [x] Compose UI tests on the JVM via Robolectric, in the ordinary `testDebugUnitTest` task
+- [x] Regression tests for both drag bugs and the navigation-transition bug, each verified to fail
+      against the code that had the bug
+- [x] `TodoItemList` split out of `TodoListScreen` so the drag wiring can be driven without a
+      ViewModel
+
 ## Phase 4 — Keep polish
 
 - [ ] Fast inline entry: type, Enter starts the next item, Tab/Shift-Tab indents/outdents
@@ -101,8 +109,6 @@ Two separate widgets, both Glance-based.
       name back off the result, but that path has only been exercised against a local directory
 - [ ] Verify the revoked-permission banner end to end: revoke access to the chosen folder (clear the
       provider's permission or remove the volume) and confirm settings offers to re-pick it
-- [ ] Add Compose UI tests (Robolectric or instrumented). Three UI-layer bugs so far (two drag, one
-      navigation) were invisible to the JVM tests and only found by driving a device
 - [ ] Consider a floating drag overlay: the dragged row currently jumps between slots rather than
       following the finger continuously, which is simpler but less fluid than Keep
 - [ ] Editing an item's text forgets that it was collapsed (its `CollapseKeys` key changes).
