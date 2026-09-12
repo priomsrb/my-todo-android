@@ -89,8 +89,9 @@ data class RowEditCallbacks(
  * One TODO row: drag handle, expand chevron, checkbox, text, delete.
  *
  * Ticked items render grayed out and struck through. A collapsed parent shows how many descendants
- * are hidden underneath it. The drag handle starts a reorder after a long press; while a row is
- * being dragged it lifts with a shadow and its indent animates to the depth it would land at.
+ * are hidden underneath it. The drag handle starts a reorder the moment the finger moves on it, no
+ * hold needed; while a row is being dragged it lifts with a shadow and its indent animates to the
+ * depth it would land at.
  *
  * The handle is only drawn when reordering is actually available.
  *

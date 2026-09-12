@@ -3,9 +3,9 @@
 A Google Keep-inspired Android TODO app whose data lives in plain markdown files.
 
 Current state: **Phase 5 complete** — lists are real markdown files, one per list, in a folder the
-user picks (app-private storage until they do); nested items expand and collapse, rows can be
-dragged to reorder and re-nest, and items are typed inline (Enter for the next one, Tab to nest),
-swiped away with an undo, coloured per list, searched across lists, and hidden once finished. Two
+user picks (app-private storage until they do); nested items expand and collapse, rows are dragged
+by the handle to reorder and re-nest, and items are typed inline (Enter for the next one, Tab to
+nest), swiped away with an undo, coloured per list, searched across lists, and hidden once finished. Two
 Glance home-screen widgets show a list and tick it off, or list every list and open one.
 See [TODO.md](TODO.md) for the roadmap.
 
@@ -99,9 +99,9 @@ adb shell uiautomator dump /sdcard/ui.xml    # then read bounds + content-desc f
 
 - **Find elements by their bounds**, not by guessing pixels: every row's drag handle carries
   `content-desc="Reorder"`, checkboxes appear as `android.widget.CheckBox`, item text as `TextView`.
-- **Long-press drags need `input motionevent`**, not `input swipe`: `DOWN`, `sleep 0.8` (to clear the
-  long-press threshold), several `MOVE`s, then `UP`. A swipe starts moving immediately and never
-  triggers a long press.
+- **Drags need `input motionevent`**, not `input swipe`: `DOWN`, several `MOVE`s, then `UP`. A
+  reorder starts on the first movement past touch slop — no hold — but `input swipe` sends too few,
+  too-coarse points to read as a drag, and it cannot hold the finger still between them.
 - **Inspect a screen mid-transition** by dumping the UI *while a touch is still held*, between the
   `DOWN` and the `UP`.
 - **Sample colours instead of eyeballing them**: `adb exec-out screencap -p > f.png` then
@@ -221,6 +221,11 @@ app/src/test/java/dev/shafqat/mytodo/
   exactly what a drop would produce.
 - **Moving invalidates collapse keys**, since they are paths. `moveItem` re-derives and re-persists
   them for that file afterwards.
+- **The drag starts on movement, not on a hold.** The handle uses `detectDragGestures`, so a row
+  moves from the first movement past touch slop; there is no long-press threshold to wait out. The
+  handle consumes the gesture, which is what stops that same movement from scrolling the list or
+  arming swipe-to-delete — and it is why the handle is a small, deliberate target rather than the
+  whole row.
 - **The drag gesture must not capture the row's index or depth.** `pointerInput` is keyed on the
   item id alone, deliberately, so reordering the list cannot cancel an in-flight drag — which also
   means its gesture block is never recreated when a row moves. Read index and depth through

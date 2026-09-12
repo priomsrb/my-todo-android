@@ -71,18 +71,27 @@ class TodoItemListUiTest {
         }
     }
 
-    /** Long-presses the handle of the row at [rowIndex] and drags it by [dy] pixels. */
+    /**
+     * Drags the handle of the row at [rowIndex] by [dy] pixels, with no hold first.
+     *
+     * The drag starts as soon as the movement passes touch slop, so the first slop-worth of
+     * travel is swallowed by the gesture detector; [dx] and [dy] are padded by that much to
+     * describe how far the row is actually asked to move.
+     */
     private fun dragRow(rowIndex: Int, dy: Float = 0f, dx: Float = 0f) {
         composeRule.onAllNodesWithContentDescription("Reorder")[rowIndex].performTouchInput {
             down(center)
-            advanceEventTime(viewConfiguration.longPressTimeoutMillis + 100)
+            advanceEventTime(16)
             if (dx != 0f || dy != 0f) {
+                val slop = viewConfiguration.touchSlop
+                val total = Offset(dx + slop * Math.signum(dx), dy + slop * Math.signum(dy))
                 // Several small steps, the way a finger actually moves.
                 repeat(4) {
-                    moveBy(Offset(dx / 4f, dy / 4f))
+                    moveBy(total / 4f)
                     advanceEventTime(16)
                 }
             } else {
+                // No movement at all: this never becomes a drag, which is the point of the test.
                 advanceEventTime(200)
             }
             up()
@@ -105,6 +114,23 @@ class TodoItemListUiTest {
         composeRule.setContent { Harness() }
 
         dragRow(rowIndex = 2, dy = -rowHeightPx())
+
+        assertEquals(listOf("Alpha", "Charlie", "Bravo", "Delta"), renderedOrder)
+    }
+
+    @Test
+    fun `a drag starts without holding the handle first`() {
+        // Reordering used to wait for a long press, which made every move feel stuck. The handle
+        // exists to be dragged, so the first movement on it is the drag — nothing to wait out.
+        composeRule.setContent { Harness() }
+
+        composeRule.onAllNodesWithContentDescription("Reorder")[2].performTouchInput {
+            down(center)
+            // Straight into the movement: no time passes between the touch and the drag.
+            repeat(4) { moveBy(Offset(0f, -(rowHeightPx() + viewConfiguration.touchSlop) / 4f)) }
+            up()
+        }
+        composeRule.waitForIdle()
 
         assertEquals(listOf("Alpha", "Charlie", "Bravo", "Delta"), renderedOrder)
     }

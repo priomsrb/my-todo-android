@@ -49,7 +49,8 @@ Each list is one `.md` file in a folder the user picks; the format is the one sp
 
 Reorder vertically *and* re-nest horizontally, always moving the subtree.
 
-- [x] Long-press the drag handle to start a reorder
+- [x] Drag the handle to start a reorder — no long press: the drag begins as soon as the finger
+      moves on the handle (it waited out a long press until Phase 6)
 - [x] Live feedback: the row relocates into the slot it would land in, rather than floating over a
       gap — the screen previews the pending move by applying `moveSubtree` to the tree
 - [x] Horizontal drag indents/outdents; target depth follows the drag's x offset
@@ -132,22 +133,25 @@ Worth knowing before Phase 6:
 - **The widget flushes its write immediately** instead of using the autosave debounce: nothing keeps
   the process alive once the tap is handled.
 
-## Phase 6 — Robustness and extras
+## Phase 6 - Polish
+
+- [x] Reordering starts immediately: the drag handle no longer waits out a long press, so a row
+      follows the finger from the first movement
+- [ ] Consider a floating drag overlay: the dragged row currently jumps between slots rather than
+      following the finger continuously, which is simpler but less fluid than Keep
+
+## Phase 7 — Robustness and extras
 
 - [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers
       may append or change an extension. `SafDirectoryStore.create`/`rename` already read the real
       name back off the result, but that path has only been exercised against a local directory
 - [ ] Verify the revoked-permission banner end to end: revoke access to the chosen folder (clear the
       provider's permission or remove the volume) and confirm settings offers to re-pick it
-- [ ] Consider a floating drag overlay: the dragged row currently jumps between slots rather than
-      following the finger continuously, which is simpler but less fluid than Keep
 - [ ] Editing an item's text forgets that it was collapsed (its `CollapseKeys` key changes). Inline
       editing made this more visible, since every keystroke now changes the key. Re-key collapse
       state on edit if it proves annoying in practice
 - [ ] Conflict handling when a file changed on disk while edits were pending
 - [ ] Undo/redo stack for structural edits
-- [ ] Sort options (manual, alphabetical, completed last)
-- [ ] Export/share a list as markdown
 - [ ] Instrumented UI tests for the drag interaction
 - [ ] Widget rendering has no automated coverage — the row projection and key round-trip are unit
       tested, but the drawing itself has only been checked by hand on the emulator

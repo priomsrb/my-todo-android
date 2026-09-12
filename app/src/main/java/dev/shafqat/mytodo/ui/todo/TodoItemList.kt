@@ -2,7 +2,7 @@ package dev.shafqat.mytodo.ui.todo
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -168,7 +168,11 @@ fun TodoItemList(
                         Modifier
                     } else {
                         Modifier.pointerInput(row.item.id) {
-                            detectDragGesturesAfterLongPress(
+                            // No long press: the handle exists to be dragged, so the drag
+                            // starts as soon as the finger moves past touch slop. The handle
+                            // consumes the gesture, which is what keeps the same movement
+                            // from scrolling the list or arming swipe-to-delete instead.
+                            detectDragGestures(
                                 onDragStart = {
                                     dragState.onDragStart(row.item.id, currentIndex, currentDepth)
                                 },
