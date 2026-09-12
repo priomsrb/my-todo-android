@@ -1,10 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  A checklist: two items ticked off, one still to do.
+
+  Drawn as strokes rather than filled shapes so that the same drawable works as the monochrome
+  layer — a themed icon is tinted flat, and a solid card silhouette would read as a blank square.
+  Everything stays inside the central 66dp safe zone, which is all a round mask is guaranteed to
+  show of a 108dp adaptive icon.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Ticked: check mark and its line. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M36,38h36v5h-36z M36,51h36v5h-36z M36,64h24v5h-24z" />
+        android:pathData="M34,40 l4.5,4.5 l8.5,-10"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M53,40 h22"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round" />
+
+    <path
+        android:pathData="M34,54 l4.5,4.5 l8.5,-10"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M53,54 h22"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round" />
+
+    <!-- Still to do: an empty box. -->
+    <path
+        android:pathData="M35,62 h11 a1.5,1.5 0 0 1 1.5,1.5 v11 a1.5,1.5 0 0 1 -1.5,1.5 h-11 a1.5,1.5 0 0 1 -1.5,-1.5 v-11 a1.5,1.5 0 0 1 1.5,-1.5 z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.5"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M53,69 h22"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round" />
 </vector>

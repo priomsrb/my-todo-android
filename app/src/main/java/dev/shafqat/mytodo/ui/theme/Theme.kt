@@ -20,6 +20,10 @@ private val LightColors = lightColorScheme(
     onBackground = KeepOnSurface,
     outline = KeepOutline,
     outlineVariant = KeepOutline,
+    // The snackbar inverts the theme; without these it would come up in Material's default purple.
+    inverseSurface = KeepOnSurface,
+    inverseOnSurface = KeepSurface,
+    inversePrimary = KeepYellow,
 )
 
 private val DarkColors = darkColorScheme(
@@ -35,6 +39,9 @@ private val DarkColors = darkColorScheme(
     onBackground = KeepOnSurfaceDark,
     outline = KeepOutlineDark,
     outlineVariant = KeepOutlineDark,
+    inverseSurface = KeepOnSurfaceDark,
+    inverseOnSurface = KeepOnSurface,
+    inversePrimary = KeepAmberDeep,
 )
 
 /** Note card tints for the current theme, indexed by list position. */

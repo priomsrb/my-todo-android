@@ -10,9 +10,14 @@ package dev.shafqat.mytodo.model
 data class TodoList(
     val fileName: String,
     val items: List<TodoItem> = emptyList(),
+    val prefs: ListPrefs = ListPrefs.Default,
 ) {
     val id: String get() = fileName
     val name: String get() = displayNameFor(fileName)
+
+    /** The rows to render: everything, unless this list is set to hide what is finished. */
+    val visibleItems: List<TodoItem>
+        get() = if (prefs.hideCompleted) items.withoutCompleted() else items
 }
 
 /** Turns a list name into a safe markdown filename, e.g. "Shopping list" -> "shopping-list.md". */

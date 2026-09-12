@@ -90,13 +90,57 @@ fun allowedDepthRange(rows: List<FlatRow>, index: Int): IntRange {
  */
 fun List<TodoItem>.moveSubtree(itemId: String, targetIndex: Int, targetDepth: Int): List<TodoItem> {
     val subtree = findItem(itemId) ?: return this
+    return removeItem(itemId).insertSubtree(subtree, targetIndex, targetDepth)
+}
+
+/**
+ * Inserts [subtree] at [targetIndex] and [targetDepth], in the same coordinates [moveSubtree] uses
+ * — an index among the visible rows of the tree as it is *before* the insert.
+ *
+ * This is the second half of a move, split out so that undoing a delete can put a subtree back
+ * exactly where it came from without the item having to be in the tree first.
+ */
+fun List<TodoItem>.insertSubtree(
+    subtree: TodoItem,
+    targetIndex: Int,
+    targetDepth: Int,
+): List<TodoItem> {
+    val rows = flattenForMove()
+
+    val index = targetIndex.coerceIn(0, rows.size)
+    val depth = targetDepth.coerceIn(allowedDepthRange(rows, index))
+
+    val inserted = FlatRow(subtree, depth)
+    return (rows.take(index) + inserted + rows.drop(index)).rebuildTree()
+}
+
+/**
+ * Nests the item one level deeper, under the sibling above it — what Tab does while editing.
+ *
+ * A no-op when there is nothing to nest under: [moveSubtree] clamps to [allowedDepthRange], which
+ * already forbids becoming a grandchild of the row above.
+ */
+fun List<TodoItem>.indentItem(itemId: String): List<TodoItem> {
+    val row = visibleRowOf(itemId) ?: return this
+    return moveSubtree(itemId, row.index, row.depth + 1)
+}
+
+/**
+ * Lifts the item one level out of its parent — what Shift-Tab does while editing.
+ *
+ * The items that followed it under the old parent stay where they are rather than being adopted,
+ * so an outdented item lands *after* its former siblings. That also keeps the move legal:
+ * [allowedDepthRange] refuses any depth shallower than the row below.
+ */
+fun List<TodoItem>.outdentItem(itemId: String): List<TodoItem> {
+    val row = visibleRowOf(itemId) ?: return this
+    if (row.depth == 0) return this
+
     val remaining = removeItem(itemId).flattenForMove()
+    var target = row.index
+    while (target < remaining.size && remaining[target].depth >= row.depth) target++
 
-    val index = targetIndex.coerceIn(0, remaining.size)
-    val depth = targetDepth.coerceIn(allowedDepthRange(remaining, index))
-
-    val moved = FlatRow(subtree, depth)
-    return (remaining.take(index) + moved + remaining.drop(index)).rebuildTree()
+    return moveSubtree(itemId, target, row.depth - 1)
 }
 
 /**
@@ -105,6 +149,15 @@ fun List<TodoItem>.moveSubtree(itemId: String, targetIndex: Int, targetDepth: In
  */
 fun List<TodoItem>.visibleIndexOf(itemId: String): Int =
     flattenVisible().indexOfFirst { it.item.id == itemId }
+
+/** Where an item sits: its index among the visible rows and the depth it is rendered at. */
+data class RowPosition(val index: Int, val depth: Int)
+
+/** The position of [itemId] among the visible rows, or null when it is not in this tree. */
+fun List<TodoItem>.visibleRowOf(itemId: String): RowPosition? =
+    flattenVisible().withIndex()
+        .firstOrNull { (_, row) -> row.item.id == itemId }
+        ?.let { (index, row) -> RowPosition(index, row.depth) }
 
 private class MutableNode(private val item: TodoItem) {
 

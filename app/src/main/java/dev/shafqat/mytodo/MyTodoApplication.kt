@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import dev.shafqat.mytodo.data.MarkdownTodoRepository
 import dev.shafqat.mytodo.data.settings.DataStoreCollapseStore
+import dev.shafqat.mytodo.data.settings.DataStoreListPrefsStore
 import dev.shafqat.mytodo.data.settings.SettingsRepository
 import dev.shafqat.mytodo.data.store.LocalDirectoryStore
 import dev.shafqat.mytodo.data.store.SafDirectoryStore
@@ -32,6 +33,7 @@ class MyTodoApplication : Application() {
             scope = applicationScope,
             ioDispatcher = Dispatchers.IO,
             collapseStore = DataStoreCollapseStore(this),
+            listPrefsStore = DataStoreListPrefsStore(this),
         )
     }
 

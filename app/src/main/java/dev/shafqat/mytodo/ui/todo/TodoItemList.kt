@@ -1,27 +1,68 @@
 package dev.shafqat.mytodo.ui.todo
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.flattenVisible
 import dev.shafqat.mytodo.model.moveSubtree
 import dev.shafqat.mytodo.model.updateItem
 
 /**
- * The rows of one list, with drag-to-reorder wired up.
+ * What a row can do to the item it shows while that item is being edited.
+ *
+ * The list only routes these; what they mean to the data is the ViewModel's business.
+ */
+data class ItemEditActions(
+    val onTextChange: (itemId: String, text: String) -> Unit = { _, _ -> },
+    /** Enter on a non-empty item: start a new one straight after it. */
+    val onSplit: (itemId: String) -> Unit = {},
+    val onIndent: (itemId: String) -> Unit = {},
+    val onOutdent: (itemId: String) -> Unit = {},
+    /** Editing stopped. An item still empty at this point never existed as far as the user cares. */
+    val onEditFinished: (itemId: String) -> Unit = {},
+)
+
+/**
+ * The rows of one list, with drag-to-reorder, inline editing and swipe-to-delete wired up.
  *
  * Separate from [TodoListScreen] so it can be driven straight from a UI test with plain state and
  * callbacks, no ViewModel involved.
+ *
+ * Which row is being edited is state of this list rather than of the screen: it has to survive a
+ * row moving, and it follows [focusItemId] so that a freshly created item opens for typing without
+ * the screen having to reach down into the list.
  */
 @Composable
 fun TodoItemList(
@@ -31,9 +72,27 @@ fun TodoItemList(
     onDelete: (itemId: String) -> Unit,
     onMove: (itemId: String, targetIndex: Int, targetDepth: Int) -> Unit,
     modifier: Modifier = Modifier,
+    dragEnabled: Boolean = true,
+    focusItemId: String? = null,
+    editActions: ItemEditActions = ItemEditActions(),
 ) {
     val listState = rememberLazyListState()
     val dragState = rememberTodoDragState(listState)
+    var editingItemId by remember { mutableStateOf<String?>(null) }
+    val actions by rememberUpdatedState(editActions)
+
+    // A new item arrives already open for typing, which is the whole point of Enter.
+    LaunchedEffect(focusItemId) { if (focusItemId != null) editingItemId = focusItemId }
+
+    /** Ends an edit. Safe to call twice — a row can both lose focus and be dismissed by Enter. */
+    fun stopEditing(itemId: String) {
+        if (editingItemId == itemId) editingItemId = null
+        actions.onEditFinished(itemId)
+    }
+
+    // Back closes the editor before it leaves the screen. Without this the only way out of an edit
+    // is to start another one, and a row stuck in edit mode is a row that cannot be swiped away.
+    editingItemId?.let { editing -> BackHandler { stopEditing(editing) } }
 
     val draggedId = dragState.draggedItemId
     val previewItems = if (draggedId == null) {
@@ -59,28 +118,118 @@ fun TodoItemList(
             // fling it back there.
             val currentIndex by rememberUpdatedState(index)
             val currentDepth by rememberUpdatedState(row.depth)
+            val isEditing = row.item.id == editingItemId
 
-            TodoRow(
-                item = row.item,
-                depth = row.depth,
-                isDragging = row.item.id == draggedId,
-                dragHandleModifier = Modifier.pointerInput(row.item.id) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = {
-                            dragState.onDragStart(row.item.id, currentIndex, currentDepth)
-                        },
-                        onDrag = { change, amount ->
-                            change.consume()
-                            dragState.onDrag(amount.x, amount.y)
-                        },
-                        onDragEnd = { dragState.onDragEnd(onMove) },
-                        onDragCancel = { dragState.onDragCancel() },
-                    )
-                },
-                onToggleDone = { done -> onToggleDone(row.item.id, done) },
-                onToggleCollapsed = { collapsed -> onToggleCollapsed(row.item.id, collapsed) },
+            SwipeToDelete(
+                // Swiping a row that is mid-edit would be an accident, not an intention.
+                enabled = !isEditing,
                 onDelete = { onDelete(row.item.id) },
-            )
+            ) {
+                TodoRow(
+                    item = row.item,
+                    depth = row.depth,
+                    isDragging = row.item.id == draggedId,
+                    isEditing = isEditing,
+                    onStartEdit = { editingItemId = row.item.id },
+                    showDragHandle = dragEnabled,
+                    editCallbacks = RowEditCallbacks(
+                        onTextChange = { text -> actions.onTextChange(row.item.id, text) },
+                        onSplit = {
+                            // Enter on an item still empty means "I am done adding", so it closes
+                            // the editor instead of spawning another empty row.
+                            if (row.item.text.isBlank()) {
+                                stopEditing(row.item.id)
+                            } else {
+                                actions.onSplit(row.item.id)
+                            }
+                        },
+                        onIndent = { actions.onIndent(row.item.id) },
+                        onOutdent = { actions.onOutdent(row.item.id) },
+                        onDone = { stopEditing(row.item.id) },
+                    ),
+                    dragHandleModifier = if (!dragEnabled) {
+                        Modifier
+                    } else {
+                        Modifier.pointerInput(row.item.id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    dragState.onDragStart(row.item.id, currentIndex, currentDepth)
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragState.onDrag(amount.x, amount.y)
+                                },
+                                onDragEnd = { dragState.onDragEnd(onMove) },
+                                onDragCancel = { dragState.onDragCancel() },
+                            )
+                        }
+                    },
+                    onToggleDone = { done -> onToggleDone(row.item.id, done) },
+                    onToggleCollapsed = { collapsed -> onToggleCollapsed(row.item.id, collapsed) },
+                    onDelete = { onDelete(row.item.id) },
+                )
+            }
         }
     }
+}
+
+/**
+ * Wraps a row so that swiping it either way deletes it.
+ *
+ * The delete is committed from `confirmValueChange` rather than from a settled state, because the
+ * row is expected to disappear from the list the moment it is deleted — there is no dismissed row
+ * left to observe. Undo lives at the screen level, in a snackbar.
+ */
+@Composable
+private fun SwipeToDelete(
+    enabled: Boolean,
+    onDelete: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val delete by rememberUpdatedState(onDelete)
+    // The box asks for confirmation more than once on its way to a dismissed state, so the row
+    // would otherwise be deleted twice by a single swipe.
+    val alreadyDeleted = remember { mutableStateOf(false) }
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when {
+                value == SwipeToDismissBoxValue.Settled -> false
+                alreadyDeleted.value -> true
+                else -> {
+                    alreadyDeleted.value = true
+                    delete()
+                    true
+                }
+            }
+        },
+    )
+
+    SwipeToDismissBox(
+        state = state,
+        gesturesEnabled = enabled,
+        backgroundContent = {
+            if (state.targetValue != SwipeToDismissBoxValue.Settled) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .padding(horizontal = 20.dp),
+                    contentAlignment = if (state.targetValue == SwipeToDismissBoxValue.StartToEnd) {
+                        Alignment.CenterStart
+                    } else {
+                        Alignment.CenterEnd
+                    },
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.delete),
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        },
+        content = { content() },
+    )
 }

@@ -1,6 +1,7 @@
 package dev.shafqat.mytodo.ui.todo
 
 import android.app.Application
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,9 +9,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -19,10 +27,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,15 +43,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.lifecycle.viewmodel.CreationExtras
 import dev.shafqat.mytodo.R
+import dev.shafqat.mytodo.model.ListPrefs
+import dev.shafqat.mytodo.model.hasCompleted
+import dev.shafqat.mytodo.ui.components.ColorPickerDialog
+import dev.shafqat.mytodo.ui.components.EmptyState
 import dev.shafqat.mytodo.ui.components.TextInputDialog
+import dev.shafqat.mytodo.ui.theme.noteColors
 
 /** One list of TODOs, rendered as a flat lazy column of recursively-indented rows. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,15 +62,53 @@ import dev.shafqat.mytodo.ui.components.TextInputDialog
 fun TodoListScreen(
     listId: String,
     onBack: () -> Unit,
+    onRenamed: (String) -> Unit,
     viewModel: TodoListViewModel = viewModel(
         key = "todo-list-$listId",
         factory = todoListViewModelFactory(listId),
     ),
 ) {
     val list by viewModel.list.collectAsStateWithLifecycle()
-    var showAddItemDialog by remember { mutableStateOf(false) }
+    val focusItemId by viewModel.focusItemId.collectAsStateWithLifecycle()
+    val pendingUndo by viewModel.pendingUndo.collectAsStateWithLifecycle()
+    val renamedListId by viewModel.renamedListId.collectAsStateWithLifecycle()
+
+    var showColorPicker by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val prefs = list?.prefs ?: ListPrefs.Default
+    val palette = noteColors()
+    // A list with no colour of its own keeps the plain app background rather than palette entry
+    // zero, so "no colour" still means "looks untouched" if the palette ever changes.
+    val targetTint = prefs.colorIndex
+        ?.let { palette[it.coerceIn(palette.indices)] }
+        ?: MaterialTheme.colorScheme.background
+    val tint by animateColorAsState(targetTint, label = "list-tint")
+
+    // Renaming a list renames its file, and the file name is the id this screen was opened with,
+    // so the screen has to follow the list to its new route.
+    LaunchedEffect(renamedListId) { renamedListId?.let(onRenamed) }
+
+    val deletedMessage = stringResource(R.string.item_deleted)
+    val undoLabel = stringResource(R.string.undo)
+    LaunchedEffect(pendingUndo) {
+        val deleted = pendingUndo ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = deletedMessage,
+            actionLabel = undoLabel,
+            duration = SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.undoDelete()
+        } else if (viewModel.pendingUndo.value === deleted) {
+            viewModel.dismissUndo()
+        }
+    }
 
     Scaffold(
+        containerColor = tint,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(list?.name ?: stringResource(R.string.untitled_list)) },
@@ -71,33 +125,24 @@ fun TodoListScreen(
                     IconButton(onClick = { menuExpanded = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more))
                     }
-                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.collapse_all)) },
-                            leadingIcon = { Icon(Icons.Default.UnfoldLess, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                viewModel.setAllCollapsed(true)
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.expand_all)) },
-                            leadingIcon = { Icon(Icons.Default.UnfoldMore, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                viewModel.setAllCollapsed(false)
-                            },
-                        )
-                    }
+                    ListMenu(
+                        expanded = menuExpanded,
+                        hideCompleted = prefs.hideCompleted,
+                        hasCompleted = list?.items?.hasCompleted() == true,
+                        onDismiss = { menuExpanded = false },
+                        onRename = { showRenameDialog = true },
+                        onPickColor = { showColorPicker = true },
+                        onToggleHideCompleted = { viewModel.setHideCompleted(!prefs.hideCompleted) },
+                        onMoveCompletedToBottom = viewModel::moveCompletedToBottom,
+                        onSetAllCollapsed = viewModel::setAllCollapsed,
+                    )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = tint),
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { showAddItemDialog = true },
+                onClick = viewModel::addItem,
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
@@ -105,44 +150,137 @@ fun TodoListScreen(
             )
         },
     ) { innerPadding ->
-        val items = list?.items.orEmpty()
+        val allItems = list?.items.orEmpty()
+        val visibleItems = list?.visibleItems.orEmpty()
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
+                .background(tint)
                 .padding(innerPadding),
         ) {
-            if (items.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.list_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            when {
+                allItems.isEmpty() -> EmptyState(
+                    icon = Icons.Default.Checklist,
+                    title = stringResource(R.string.list_empty_title),
+                    subtitle = stringResource(R.string.list_empty_subtitle),
                     modifier = Modifier.align(Alignment.Center),
                 )
-            } else {
-                TodoItemList(
-                    items = items,
+
+                visibleItems.isEmpty() -> EmptyState(
+                    icon = Icons.Default.CheckCircle,
+                    title = stringResource(R.string.all_done_title),
+                    subtitle = stringResource(R.string.all_done_subtitle),
+                    modifier = Modifier.align(Alignment.Center),
+                )
+
+                else -> TodoItemList(
+                    items = visibleItems,
+                    // Row indices are the drag's coordinate system, and a filtered list does not
+                    // have the same ones. Hiding finished items therefore parks reordering until
+                    // the whole list is on screen again.
+                    dragEnabled = !prefs.hideCompleted,
+                    focusItemId = focusItemId,
                     onToggleDone = viewModel::setDone,
                     onToggleCollapsed = viewModel::setCollapsed,
                     onDelete = viewModel::deleteItem,
                     onMove = viewModel::moveItem,
+                    editActions = ItemEditActions(
+                        onTextChange = viewModel::setText,
+                        onSplit = viewModel::addItemAfter,
+                        onIndent = viewModel::indent,
+                        onOutdent = viewModel::outdent,
+                        onEditFinished = viewModel::finishEditing,
+                    ),
                 )
             }
         }
     }
 
-    if (showAddItemDialog) {
-        TextInputDialog(
-            title = stringResource(R.string.new_item),
-            confirmLabel = "Add",
-            onConfirm = { text ->
-                viewModel.addItem(text)
-                showAddItemDialog = false
-            },
-            onDismiss = { showAddItemDialog = false },
+    if (showColorPicker) {
+        ColorPickerDialog(
+            selectedIndex = prefs.colorIndex,
+            onSelect = viewModel::setColor,
+            onDismiss = { showColorPicker = false },
         )
     }
+
+    if (showRenameDialog) {
+        TextInputDialog(
+            title = stringResource(R.string.rename_list),
+            confirmLabel = stringResource(R.string.rename),
+            initialValue = list?.name.orEmpty(),
+            onConfirm = { name ->
+                viewModel.rename(name)
+                showRenameDialog = false
+            },
+            onDismiss = { showRenameDialog = false },
+        )
+    }
+}
+
+/** The list screen's overflow menu, split out to keep the top bar readable. */
+@Composable
+private fun ListMenu(
+    expanded: Boolean,
+    hideCompleted: Boolean,
+    hasCompleted: Boolean,
+    onDismiss: () -> Unit,
+    onRename: () -> Unit,
+    onPickColor: () -> Unit,
+    onToggleHideCompleted: () -> Unit,
+    onMoveCompletedToBottom: () -> Unit,
+    onSetAllCollapsed: (Boolean) -> Unit,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        MenuRow(stringResource(R.string.rename_list), Icons.Default.DriveFileRenameOutline) {
+            onDismiss()
+            onRename()
+        }
+        MenuRow(stringResource(R.string.list_color), Icons.Default.Palette) {
+            onDismiss()
+            onPickColor()
+        }
+        if (hasCompleted) {
+            MenuRow(
+                text = stringResource(
+                    if (hideCompleted) R.string.show_completed else R.string.hide_completed,
+                ),
+                icon = if (hideCompleted) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+            ) {
+                onDismiss()
+                onToggleHideCompleted()
+            }
+            MenuRow(
+                stringResource(R.string.move_completed_to_bottom),
+                Icons.Default.VerticalAlignBottom,
+            ) {
+                onDismiss()
+                onMoveCompletedToBottom()
+            }
+        }
+        MenuRow(stringResource(R.string.collapse_all), Icons.Default.UnfoldLess) {
+            onDismiss()
+            onSetAllCollapsed(true)
+        }
+        MenuRow(stringResource(R.string.expand_all), Icons.Default.UnfoldMore) {
+            onDismiss()
+            onSetAllCollapsed(false)
+        }
+    }
+}
+
+@Composable
+private fun MenuRow(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = { Text(text) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        onClick = onClick,
+    )
 }
 
 /** Supplies the list id to the ViewModel, which otherwise has no way to know which list it shows. */

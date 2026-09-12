@@ -22,6 +22,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import dev.shafqat.mytodo.ui.lists.ListsScreen
+import dev.shafqat.mytodo.ui.search.SearchScreen
 import dev.shafqat.mytodo.ui.settings.SettingsScreen
 import dev.shafqat.mytodo.ui.todo.TodoListScreen
 
@@ -31,6 +32,7 @@ internal const val ScreenTransitionMillis = 180
 object Routes {
     const val LISTS = "lists"
     const val SETTINGS = "settings"
+    const val SEARCH = "search"
     const val LIST_DETAIL = "list/{listId}"
 
     // List ids are filenames, so they must be encoded before going into a route.
@@ -60,6 +62,7 @@ fun MyTodoApp() {
                 Screen(entry) {
                     ListsScreen(
                         onListClick = { listId -> navController.navigate(Routes.listDetail(listId)) },
+                        onSearchClick = { navController.navigate(Routes.SEARCH) },
                         onSettingsClick = { navController.navigate(Routes.SETTINGS) },
                     )
                 }
@@ -72,6 +75,21 @@ fun MyTodoApp() {
                     TodoListScreen(
                         listId = requireNotNull(entry.arguments?.getString("listId")),
                         onBack = { navController.popBackStack() },
+                        // A rename renames the file, and the file name is this route's argument,
+                        // so the screen has to be reopened under the id the list now has.
+                        onRenamed = { newListId ->
+                            navController.navigate(Routes.listDetail(newListId)) {
+                                popUpTo(Routes.LIST_DETAIL) { inclusive = true }
+                            }
+                        },
+                    )
+                }
+            }
+            composable(Routes.SEARCH) { entry ->
+                Screen(entry) {
+                    SearchScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenList = { listId -> navController.navigate(Routes.listDetail(listId)) },
                     )
                 }
             }

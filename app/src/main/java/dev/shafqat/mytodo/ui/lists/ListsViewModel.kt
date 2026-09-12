@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.shafqat.mytodo.data.StorageState
 import dev.shafqat.mytodo.data.TodoRepository
+import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.todoRepository
 import kotlinx.coroutines.flow.StateFlow
@@ -28,5 +29,11 @@ class ListsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteList(listId: String) {
         viewModelScope.launch { repository.deleteList(listId) }
+    }
+
+    /** Recolours a card. Null means "no colour of its own", not palette entry zero. */
+    fun setColor(listId: String, colorIndex: Int?) {
+        val current = lists.value.firstOrNull { it.id == listId }?.prefs ?: ListPrefs.Default
+        viewModelScope.launch { repository.setListPrefs(listId, current.copy(colorIndex = colorIndex)) }
     }
 }

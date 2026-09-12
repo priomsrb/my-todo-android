@@ -17,6 +17,14 @@ val KeepOutlineDark = Color(0xFF3C4043)
 val KeepOnSurfaceDark = Color(0xFFE8EAED)
 val KeepOnSurfaceVariantDark = Color(0xFF9AA0A6)
 
+/**
+ * Accent for surfaces that invert the theme — the snackbar, chiefly.
+ *
+ * Material's `inversePrimary` defaults to its own purple, and the Keep yellow is unreadable on the
+ * pale inverted surface a dark theme produces, so the dark theme gets this deeper amber instead.
+ */
+val KeepAmberDeep = Color(0xFF7A5900)
+
 /** Card tints for lists, mirroring Keep's colored notes. Indexed by list position. */
 val NoteColors = listOf(
     Color(0xFFFFFFFF),

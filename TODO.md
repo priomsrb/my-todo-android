@@ -70,16 +70,31 @@ Reorder vertically *and* re-nest horizontally, always moving the subtree.
 - [x] `TodoItemList` split out of `TodoListScreen` so the drag wiring can be driven without a
       ViewModel
 
-## Phase 4 — Keep polish
+## Phase 4 — Keep polish ✅
 
-- [ ] Fast inline entry: type, Enter starts the next item, Tab/Shift-Tab indents/outdents
-- [ ] Tap an item's text to edit it in place
-- [ ] Swipe to delete with an undo snackbar
-- [ ] Per-list color (Keep's palette), stored locally
-- [ ] "Hide completed" toggle, and move-completed-to-bottom
-- [ ] Search across lists
-- [ ] Rename a list (and its file) from the list screen
-- [ ] Empty states and a proper app icon
+- [x] Fast inline entry: type, Enter starts the next item, Tab/Shift-Tab indents/outdents.
+      Enter on a still-empty item closes the editor instead of adding another blank row, and back
+      dismisses it — otherwise the only way out of an edit is to start another one
+- [x] Tap an item's text to edit it in place; an item left empty is dropped when the edit ends
+- [x] Swipe to delete with an undo snackbar. Undo re-inserts the subtree at the index and depth it
+      was taken from, through the same `insertSubtree` a drag lands with
+- [x] Per-list color (Keep's palette), stored locally in `list_prefs` — its own DataStore file, not
+      merged with settings or collapse. A list with no colour of its own keeps the tint of its
+      position in the grid; the chosen colour also tints the list screen
+- [x] "Hide completed" toggle (a per-list view, never written to the file) and
+      move-completed-to-bottom (an edit, which rewrites the file)
+- [x] Search across lists, including inside collapsed subtrees; a result opens its list
+- [x] Rename a list (and its file) from the list screen — the screen re-opens under the new id,
+      since the file name *is* the id
+- [x] Empty states (no lists, empty list, everything done, no search results) and an app icon that
+      reads as a checklist and works as a monochrome themed icon
+
+Two decisions worth knowing about before Phase 5:
+
+- **Reordering is off while completed items are hidden.** Drag coordinates are row indices, and a
+  filtered list does not have the same ones. The drag handle is hidden rather than left inert.
+- **Editing an item still forgets that it was collapsed**, now on every keystroke rather than once
+  per edit, because collapse keys are text paths. Still a Phase 6 item.
 
 ## Phase 5 — Home-screen widgets
 
@@ -111,8 +126,9 @@ Two separate widgets, both Glance-based.
       provider's permission or remove the volume) and confirm settings offers to re-pick it
 - [ ] Consider a floating drag overlay: the dragged row currently jumps between slots rather than
       following the finger continuously, which is simpler but less fluid than Keep
-- [ ] Editing an item's text forgets that it was collapsed (its `CollapseKeys` key changes).
-      Re-key collapse state on rename if this proves annoying in practice
+- [ ] Editing an item's text forgets that it was collapsed (its `CollapseKeys` key changes). Inline
+      editing made this more visible, since every keystroke now changes the key. Re-key collapse
+      state on edit if it proves annoying in practice
 - [ ] Conflict handling when a file changed on disk while edits were pending
 - [ ] Undo/redo stack for structural edits
 - [ ] Sort options (manual, alphabetical, completed last)
@@ -127,3 +143,8 @@ Two separate widgets, both Glance-based.
 - **Completed items stay in the file as `- [X]`** indefinitely. Archiving them out is a possible
   future feature, not a current one.
 - **Two widgets, not one** (see Phase 5): one edits a single list, one picks a list to open.
+- **Hiding completed items is a view; moving them to the bottom is an edit.** The first never
+  touches the file and is remembered per list; the second reorders the markdown exactly as dragging
+  each finished item down by hand would.
+- **A list's colour and view options live in `list_prefs`, keyed by file name**, and follow a
+  rename and vanish with a delete, the same way collapse state does.

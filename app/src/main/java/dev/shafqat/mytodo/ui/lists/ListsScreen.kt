@@ -17,12 +17,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -60,6 +65,8 @@ import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.doneCount
 import dev.shafqat.mytodo.model.flattenVisible
 import dev.shafqat.mytodo.model.totalCount
+import dev.shafqat.mytodo.ui.components.ColorPickerDialog
+import dev.shafqat.mytodo.ui.components.EmptyState
 import dev.shafqat.mytodo.ui.components.TextInputDialog
 import dev.shafqat.mytodo.ui.theme.noteColors
 
@@ -68,6 +75,7 @@ import dev.shafqat.mytodo.ui.theme.noteColors
 @Composable
 fun ListsScreen(
     onListClick: (String) -> Unit,
+    onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
     viewModel: ListsViewModel = viewModel(),
 ) {
@@ -76,12 +84,16 @@ fun ListsScreen(
     var showNewListDialog by remember { mutableStateOf(false) }
     var listPendingRename by remember { mutableStateOf<TodoList?>(null) }
     var listPendingDelete by remember { mutableStateOf<TodoList?>(null) }
+    var listPendingColor by remember { mutableStateOf<TodoList?>(null) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.lists_title)) },
                 actions = {
+                    IconButton(onClick = onSearchClick) {
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search_title))
+                    }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings_title))
                     }
@@ -109,10 +121,10 @@ fun ListsScreen(
                     .background(MaterialTheme.colorScheme.background)
                     .padding(innerPadding),
             ) {
-                Text(
-                    text = stringResource(R.string.no_lists),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                EmptyState(
+                    icon = Icons.Default.NoteAdd,
+                    title = stringResource(R.string.no_lists_title),
+                    subtitle = stringResource(R.string.no_lists_subtitle),
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
@@ -129,13 +141,16 @@ fun ListsScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(lists, key = { it.id }) { list ->
-                val tint = tints[lists.indexOfFirst { it.id == list.id }.coerceAtLeast(0) % tints.size]
+            itemsIndexed(lists, key = { _, list -> list.id }) { index, list ->
+                // A list that has not been given a colour takes the tint of its position, so a new
+                // folder still looks like Keep's wall of coloured notes rather than a grid of white.
+                val tint = tints[(list.prefs.colorIndex ?: index) % tints.size]
                 ListCard(
                     list = list,
                     tint = tint,
                     onClick = { onListClick(list.id) },
                     onRename = { listPendingRename = list },
+                    onPickColor = { listPendingColor = list },
                     onDelete = { listPendingDelete = list },
                 )
             }
@@ -172,6 +187,14 @@ fun ListsScreen(
         )
     }
 
+    listPendingColor?.let { list ->
+        ColorPickerDialog(
+            selectedIndex = list.prefs.colorIndex,
+            onSelect = { colorIndex -> viewModel.setColor(list.id, colorIndex) },
+            onDismiss = { listPendingColor = null },
+        )
+    }
+
     if (showNewListDialog) {
         TextInputDialog(
             title = stringResource(R.string.new_list),
@@ -192,6 +215,7 @@ private fun ListCard(
     tint: Color,
     onClick: () -> Unit,
     onRename: () -> Unit,
+    onPickColor: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -210,13 +234,23 @@ private fun ListCard(
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.rename_list)) },
+                leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) },
                 onClick = {
                     menuExpanded = false
                     onRename()
                 },
             )
             DropdownMenuItem(
+                text = { Text(stringResource(R.string.list_color)) },
+                leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null) },
+                onClick = {
+                    menuExpanded = false
+                    onPickColor()
+                },
+            )
+            DropdownMenuItem(
                 text = { Text(stringResource(R.string.delete_list)) },
+                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                 onClick = {
                     menuExpanded = false
                     onDelete()
@@ -265,7 +299,7 @@ private fun ListCard(
 
         if (list.items.isEmpty()) {
             Text(
-                text = "Empty list",
+                text = stringResource(R.string.empty_list),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

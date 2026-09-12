@@ -2,9 +2,11 @@
 
 A Google Keep-inspired Android TODO app whose data lives in plain markdown files.
 
-Current state: **Phase 3 complete** — lists are real markdown files, one per list, in a folder the
-user picks (app-private storage until they do); nested items expand and collapse, and rows can be
-dragged to reorder and re-nest. No widget yet. See [TODO.md](TODO.md) for the roadmap.
+Current state: **Phase 4 complete** — lists are real markdown files, one per list, in a folder the
+user picks (app-private storage until they do); nested items expand and collapse, rows can be
+dragged to reorder and re-nest, and items are typed inline (Enter for the next one, Tab to nest),
+swiped away with an undo, coloured per list, searched across lists, and hidden once finished. No
+widget yet. See [TODO.md](TODO.md) for the roadmap.
 
 ## Product invariants
 
@@ -15,8 +17,8 @@ These hold for every phase. Do not design around them.
 2. **A move takes the subtree with it.** Dragging, indenting or outdenting an item moves all of its
    descendants along with it.
 3. **Markdown is the source of truth.** The `.md` file is what the user owns; the app is a view over
-   it. Anything the format cannot express (collapse state, per-list color) is local UI state stored
-   separately and never written into the file.
+   it. Anything the format cannot express (collapse state, per-list colour, "hide completed") is
+   local UI state stored separately and never written into the file.
 4. **Item ids are stable** across reorder, re-nest and save/load, so Compose keys and drag state
    survive edits.
 5. **Ticked items read as done** — grayed out and struck through, never hidden by default.
@@ -129,26 +131,32 @@ app/src/main/java/dev/shafqat/mytodo/
   model/
     TodoItem.kt              tree node + flattenVisible/updateItem/addItem/removeItem helpers
     TodoList.kt              one named list, backed by one markdown file
-    TreeMove.kt              flatten/rebuild and moveSubtree — all of the drag maths
+    ListPrefs.kt             per-list colour and view options — local, never in the file
+    TreeMove.kt              flatten/rebuild, moveSubtree, insert/indent/outdent — the move maths
+    Completed.kt             hiding finished items (a view) and sinking them (an edit)
+    Search.kt                matching items across every list
   data/
     TodoRepository.kt        interface the UI talks to
     MarkdownTodoRepository.kt  keeps the tree and the files in step; no Android APIs
     StorageState.kt          Ready / PermissionLost / Error / Loading
     markdown/                MarkdownParser, MarkdownSerializer, MarkdownDocument
     collapse/                CollapseKeys (stable item identity) + CollapseStore
+    prefs/                   ListPrefsStore: per-list colour and view options
     store/
       TodoFileStore.kt       the only seam that knows where files physically live
       LocalDirectoryStore.kt app-private default; also stands in for storage in tests
       SafDirectoryStore.kt   a folder the user picked, via a persisted tree URI
     settings/                DataStore: SettingsRepository (folder URI),
-                             DataStoreCollapseStore (collapse state)
+                             DataStoreCollapseStore (collapse state),
+                             DataStoreListPrefsStore (per-list colour, hide-completed)
   ui/
-    navigation/MyTodoApp.kt  NavHost: lists → list/{listId} → settings
+    navigation/MyTodoApp.kt  NavHost: lists → list/{listId} → search → settings
     lists/                   Keep-style grid of list cards
-    todo/                    one list: flattened rows, checkboxes, add/delete,
+    todo/                    one list: flattened rows, checkboxes, inline editing, swipe-to-delete,
                              TodoDragState (drag, depth, auto-scroll)
-    settings/                placeholder rows until Phase 1
-    components/              shared composables (TextInputDialog)
+    search/                  search across every list
+    settings/                folder picker, storage state, about rows
+    components/              shared composables (TextInputDialog, ColorPickerDialog, EmptyState)
     theme/                   Keep-ish palette, typography, note tints
 app/src/test/java/dev/shafqat/mytodo/
   TodoTreeTest.kt            tree helpers
@@ -158,7 +166,12 @@ app/src/test/java/dev/shafqat/mytodo/
   TreeMoveTest.kt            the move maths, incl. exhaustive invariants
   MoveItemTest.kt            moves reaching the file
   AutoScrollTest.kt          when a drag scrolls the list
+  OutlineEditTest.kt         indent/outdent and putting a deleted subtree back
+  CompletedTest.kt           hiding finished items vs. sinking them
+  SearchTest.kt              matching across lists
+  ListEditingTest.kt         the Phase 4 edits as they reach the file, plus list prefs
   TodoItemListUiTest.kt      Compose: dragging rows (Robolectric)
+  TodoItemEditingUiTest.kt   Compose: inline entry, Enter/Tab, swipe-to-delete
   NavigationTransitionUiTest.kt  Compose: taps during screen transitions
 ```
 
@@ -207,6 +220,57 @@ app/src/test/java/dev/shafqat/mytodo/
   re-reads the row under the finger, the item walked up the list on its own. `autoScrollSpeed` is
   pure and tested — keep the decision there rather than inline in the frame loop.
 
+## How editing works
+
+- **A row becomes its own text field.** Tapping an item's text swaps the `Text` for a
+  `BasicTextField` in the same slot, so nothing moves as the edit starts. Which row is being edited
+  is state of `TodoItemList`, not of the screen: it has to survive the row being re-nested, and a
+  test can drive it without a ViewModel.
+- **Keys are handled on the preview pass.** Tab would otherwise move focus and Enter would insert a
+  newline; `onPreviewKeyEvent` claims Tab, Shift-Tab and Enter before the field sees them. The soft
+  keyboard's Next action is wired to the same place, since IMEs do not deliver Enter as a key event.
+- **Enter is "split", and `addItemAfter` is one insert at the row below.** The new item goes at the
+  edited row's index plus one, at its depth; when the item has children showing, that position *is*
+  its first child, which is what an outliner does anyway. It falls out of the move coordinates
+  rather than being a second code path.
+- **Tab and Shift-Tab are moves, not a depth field.** `indentItem` re-runs `moveSubtree` at the same
+  index one level deeper and lets `allowedDepthRange` refuse what is illegal; `outdentItem` first
+  walks past the siblings that followed it, so they keep their parent instead of being adopted.
+- **An item left empty is deleted when the edit ends.** Blank rows cannot be told apart on screen
+  from rows the user meant to keep, and pressing Enter once too many is the usual way to get one.
+  That is also what makes Enter-on-an-empty-item read as "I am done".
+- **A new editor must not end itself.** A field reports "not focused" once before it is given focus;
+  `ItemEditor` ignores that first report, or every freshly created item would be deleted the
+  instant it appeared.
+- **Back closes the editor** (`BackHandler` in `TodoItemList`) before it leaves the screen.
+  Otherwise the only way out of an edit is to start another one — and an editing row is a row that
+  cannot be swiped away, since swipe is deliberately off mid-edit.
+- **Swipe-to-delete commits from `confirmValueChange`,** because the row is gone from the list as
+  soon as it is deleted and there is no settled state left to observe. The box asks more than once
+  on its way to dismissed, so the delete is guarded by a flag or a single swipe deletes twice.
+- **Undo is `insertSubtree` at the recorded index and depth.** `TodoListViewModel` captures where an
+  item sat *before* deleting it; anything less puts the item back at the end of the list, which is
+  not undoing anything.
+
+## Completed items, colour and view options
+
+- **Hiding finished items is a view; moving them to the bottom is an edit.** `withoutCompleted()`
+  filters what is rendered and never reaches the file. `completedLast()` rewrites the tree, and so
+  the markdown, exactly as dragging each finished item down by hand would.
+- **A done item with unfinished descendants is not hidden**, because its children would otherwise be
+  orphaned or silently promoted a level.
+- **Reordering is off while completed items are hidden.** A drag is a row index, and a filtered list
+  does not have the same indices; rather than translate between two coordinate spaces, the drag
+  handle is hidden. Everything else — editing, indent, delete, collapse — is keyed by item id and
+  works unchanged.
+- **Per-list colour and "hide completed" live in `ListPrefs`, keyed by file name**, in a third
+  DataStore file (`list_prefs`). Same reasoning as collapse: a write re-emits the whole preferences
+  object, so stores that are read for different reasons do not share a file. They follow a rename
+  and are forgotten on delete, like collapse keys.
+- **A list with no colour of its own takes the tint of its position in the grid**, so a new folder
+  still looks like Keep's wall of coloured notes. "No colour" is stored as a null index, never as
+  palette entry zero, so changing the default later reaches every list that never chose one.
+
 ## Navigation
 
 - **Every destination goes through `Screen()`**, which ignores touches until its `NavBackStackEntry`
@@ -245,6 +309,9 @@ app/src/test/java/dev/shafqat/mytodo/
   plus the *text path* down to the item — because `TodoItem.id` is a fresh UUID on every parse and
   could never survive a reload. Editing an item's text therefore forgets its collapse, which is the
   intended trade-off: better to forget than to collapse the wrong item.
+- **A rename returns the id the list actually got.** The file name is the id, so a rename changes
+  it: `renameList` hands back the new one and the list screen re-opens on the new route. A screen
+  left on the old id would show nothing.
 - **A failure becomes a `StorageState`, not a crash.** `SecurityException` means the folder
   permission is gone (`PermissionLost`, surfaced as a settings banner offering to re-pick); anything
   else becomes `Error`. The app never silently falls back to a different set of files.
