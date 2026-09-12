@@ -4,4 +4,10 @@
     <!-- Must match KeepBackground in ui/theme/Color.kt: it is what shows through while screens
          cross-fade, and behind the app before Compose has drawn anything. -->
     <color name="window_background">#FAFAFA</color>
+
+    <!-- Widget previews are static XML, so they cannot read the Compose palette. Keep these
+         matching KeepSurface / KeepOnSurface / KeepOnSurfaceVariant in ui/theme/Color.kt. -->
+    <color name="widget_preview_background">#FFFFFF</color>
+    <color name="widget_preview_text">#202124</color>
+    <color name="widget_preview_text_secondary">#5F6368</color>
 </resources>

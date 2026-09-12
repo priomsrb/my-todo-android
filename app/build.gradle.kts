@@ -11,8 +11,8 @@ android {
         applicationId = "dev.shafqat.mytodo"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.5"
+        versionCode = 2
+        versionName = "0.6"
     }
 
     buildTypes {
@@ -55,6 +55,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.documentfile)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

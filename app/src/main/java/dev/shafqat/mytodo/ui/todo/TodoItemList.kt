@@ -21,6 +21,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,7 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.flattenVisible
@@ -93,6 +97,19 @@ fun TodoItemList(
     // Back closes the editor before it leaves the screen. Without this the only way out of an edit
     // is to start another one, and a row stuck in edit mode is a row that cannot be swiped away.
     editingItemId?.let { editing -> BackHandler { stopEditing(editing) } }
+
+    // Leaving the app is also the end of an edit. Nothing tells a text field it lost focus when the
+    // whole screen goes away, so without this an item the user never finished typing is left
+    // behind as a blank row — and saved to their file as one.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, editingItemId) {
+        val editing = editingItemId
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && editing != null) stopEditing(editing)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val draggedId = dragState.draggedItemId
     val previewItems = if (draggedId == null) {

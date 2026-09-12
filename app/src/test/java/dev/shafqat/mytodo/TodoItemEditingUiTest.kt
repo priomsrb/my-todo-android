@@ -5,9 +5,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -20,6 +22,9 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.withKeyDown
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.addItem
@@ -68,6 +73,12 @@ class TodoItemEditingUiTest {
     /** Ids of every item that was deleted, in order — including the blank ones tidied away. */
     private val deleted = mutableListOf<String>()
 
+    /** A lifecycle the test owns, so it can send the screen to the background on demand. */
+    private val lifecycleOwner = object : LifecycleOwner {
+        val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
+    }
+
     @Composable
     private fun Harness(start: List<TodoItem> = initialItems) {
         var items by remember { mutableStateOf(start) }
@@ -75,6 +86,7 @@ class TodoItemEditingUiTest {
         renderedRows = items.flattenVisible().map { it.item.text to it.depth }
 
         MyTodoTheme {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
             TodoItemList(
                 items = items,
                 focusItemId = focusItemId,
@@ -114,6 +126,7 @@ class TodoItemEditingUiTest {
                 ),
                 modifier = Modifier.fillMaxSize(),
             )
+            }
         }
     }
 
@@ -216,6 +229,44 @@ class TodoItemEditingUiTest {
         composeRule.waitForIdle()
 
         assertEquals(listOf("Alpha" to 0, "Bravo?" to 1, "Charlie" to 0), renderedRows)
+    }
+
+    /**
+     * Found in the wild: an item typed into and then abandoned by switching away from the app stayed
+     * behind as a blank row, and was saved to the markdown file as one. Nothing tells a text field
+     * it lost focus when the whole screen goes away.
+     */
+    @Test
+    fun `leaving the app ends the edit, so an unfinished item is not left behind`() {
+        composeRule.setContent { Harness() }
+        startEditing("Alpha")
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+        assertEquals(4, renderedRows.size)
+
+        composeRule.runOnUiThread {
+            lifecycleOwner.registry.currentState = Lifecycle.State.CREATED
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), renderedOrder)
+        assertEquals(1, deleted.size)
+    }
+
+    @Test
+    fun `leaving the app keeps an item that was actually typed into`() {
+        composeRule.setContent { Harness() }
+        startEditing("Bravo")
+        editor().performTextInput("!")
+        composeRule.waitForIdle()
+
+        composeRule.runOnUiThread {
+            lifecycleOwner.registry.currentState = Lifecycle.State.CREATED
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "Bravo!", "Charlie"), renderedOrder)
+        assertEquals(emptyList<String>(), deleted)
     }
 
     // --- swipe to delete --------------------------------------------------------------------

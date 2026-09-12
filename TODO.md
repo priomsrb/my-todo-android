@@ -96,26 +96,41 @@ Two decisions worth knowing about before Phase 5:
 - **Editing an item still forgets that it was collapsed**, now on every keystroke rather than once
   per edit, because collapse keys are text paths. Still a Phase 6 item.
 
-## Phase 5 — Home-screen widgets
+## Phase 5 — Home-screen widgets ✅
 
-Two separate widgets, both Glance-based.
+Two separate widgets, both Glance-based (Glance 1.2.0).
 
-### 5a — List widget (view + edit one list)
+### 5a — List widget (view + edit one list) ✅
 
-- [ ] Glance `GlanceAppWidget` showing one chosen list
-- [ ] Scrollable item list in the widget, indented to show nesting
-- [ ] Tick items off directly from the widget, writing through to the file
-- [ ] Configuration activity to pick which list the widget shows
-- [ ] Refresh the widget when the underlying file changes, and vice versa
-- [ ] Resizable, with a sensible minimum size
-- [ ] Tapping the title opens that list in the app
+- [x] Glance `GlanceAppWidget` showing one chosen list
+- [x] Scrollable item list in the widget, indented to show nesting; collapsed subtrees stay folded
+      and hidden completed items stay hidden, so the widget never disagrees with the app
+- [x] Tick items off directly from the widget, writing through to the file. The tap carries a
+      `CollapseKeys` path key, not an item id — ids are fresh UUIDs on every parse, and a widget
+      outlives the process that drew it
+- [x] Configuration activity to pick which list the widget shows, stored in that widget's own
+      Glance state so several can sit side by side
+- [x] Refresh the widget when the underlying file changes, and vice versa: the widget reads from
+      disk before drawing, and the app pushes an update (debounced) whenever the lists change
+- [x] Resizable, with a sensible minimum size
+- [x] Tapping the title opens that list in the app
 
-### 5b — Launcher widget (pick a list to open)
+### 5b — Launcher widget (pick a list to open) ✅
 
-- [ ] Glance widget listing every list, like the app's home grid in miniature
-- [ ] Tapping a list opens it directly in the app (deep link into `list/{listId}`)
-- [ ] Stays in sync as lists are created, renamed and deleted
-- [ ] Scrollable when there are more lists than fit
+- [x] Glance widget listing every list, like the app's home grid in miniature — colour dot, name
+      and done count
+- [x] Tapping a list opens it directly in the app. Each row's intent carries its list id in the
+      *data URI* as well as an extra: `Intent` equality ignores extras, so otherwise every row
+      would share one `PendingIntent` and open whichever list was tapped first
+- [x] Stays in sync as lists are created, renamed and deleted
+- [x] Scrollable when there are more lists than fit
+
+Worth knowing before Phase 6:
+
+- **A tap on a stale row does nothing rather than the wrong thing.** A key that no longer resolves
+  — because the item was edited or removed since the widget was drawn — is dropped.
+- **The widget flushes its write immediately** instead of using the autosave debounce: nothing keeps
+  the process alive once the tap is handled.
 
 ## Phase 6 — Robustness and extras
 
@@ -134,6 +149,8 @@ Two separate widgets, both Glance-based.
 - [ ] Sort options (manual, alphabetical, completed last)
 - [ ] Export/share a list as markdown
 - [ ] Instrumented UI tests for the drag interaction
+- [ ] Widget rendering has no automated coverage — the row projection and key round-trip are unit
+      tested, but the drawing itself has only been checked by hand on the emulator
 - [ ] Release build config + signing notes
 
 ## Decisions
@@ -143,6 +160,9 @@ Two separate widgets, both Glance-based.
 - **Completed items stay in the file as `- [X]`** indefinitely. Archiving them out is a possible
   future feature, not a current one.
 - **Two widgets, not one** (see Phase 5): one edits a single list, one picks a list to open.
+- **Widgets share the app's one repository** rather than reading the files themselves. Two readers
+  of the same files would eventually disagree, and ticking something off in the widget has to be
+  the same edit as ticking it off in the app.
 - **Hiding completed items is a view; moving them to the bottom is an edit.** The first never
   touches the file and is remembered per list; the second reorders the markdown exactly as dragging
   each finished item down by hand would.

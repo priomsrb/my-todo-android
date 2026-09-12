@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -39,9 +40,28 @@ object Routes {
     fun listDetail(listId: String) = "list/" + Uri.encode(listId)
 }
 
+/**
+ * @param openListId a list a home-screen widget asked to open, or null for the usual start.
+ * @param onListOpened called once that request has been navigated to, so the next tap on the same
+ *   widget row counts as a new request rather than being swallowed as a repeat.
+ */
 @Composable
-fun MyTodoApp() {
+fun MyTodoApp(
+    openListId: String? = null,
+    onListOpened: () -> Unit = {},
+) {
     val navController = rememberNavController()
+
+    // A widget opens a list *on top of* the home screen rather than instead of it, so back still
+    // goes where it always goes.
+    LaunchedEffect(openListId) {
+        if (openListId != null) {
+            navController.navigate(Routes.listDetail(openListId)) {
+                popUpTo(Routes.LISTS)
+            }
+            onListOpened()
+        }
+    }
 
     // Screens cross-fade, so both are briefly translucent and whatever sits behind them shows
     // through. Without a surface in the app's own background colour that is the bare window, which

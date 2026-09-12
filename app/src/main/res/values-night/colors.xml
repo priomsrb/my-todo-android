@@ -2,4 +2,9 @@
 <resources>
     <!-- Must match KeepBackgroundDark in ui/theme/Color.kt. -->
     <color name="window_background">#17181A</color>
+
+    <!-- Matching KeepSurfaceDark / KeepOnSurfaceDark / KeepOnSurfaceVariantDark. -->
+    <color name="widget_preview_background">#202124</color>
+    <color name="widget_preview_text">#E8EAED</color>
+    <color name="widget_preview_text_secondary">#9AA0A6</color>
 </resources>

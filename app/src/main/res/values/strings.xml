@@ -11,7 +11,7 @@
     <string name="file_format">File format</string>
     <string name="file_format_summary">Markdown · one file per list · tab-indented · - [ ] / - [X]</string>
     <string name="version">Version</string>
-    <string name="version_summary">0.5 — inline editing, colours, search</string>
+    <string name="version_summary">0.6 — home-screen widgets</string>
     <string name="default_folder_label">App storage (internal)</string>
     <string name="use_default_folder">Use app storage instead</string>
     <string name="choose_folder">Choose folder</string>
@@ -53,4 +53,23 @@
     <string name="search_no_results_title">No matches</string>
     <string name="search_no_results_subtitle">Nothing in your lists contains “%1$s”.</string>
     <string name="clear_search">Clear search</string>
+
+    <!-- Home-screen widgets -->
+    <string name="list_widget_label">Todo list</string>
+    <string name="launcher_widget_label">My Todo lists</string>
+    <string name="list_widget_description">One list, ticked off from the home screen.</string>
+    <string name="launcher_widget_description">All your lists, one tap away.</string>
+    <string name="widget_pick_list">Which list?</string>
+    <string name="widget_list_missing">That list is gone. Remove this widget and add it again.</string>
+    <string name="widget_unavailable">Can\'t reach your todo folder.</string>
+    <string name="widget_no_lists">No lists yet.</string>
+    <string name="widget_list_empty">Nothing here yet.</string>
+    <string name="widget_no_lists_title">No lists to show</string>
+    <string name="widget_no_lists_subtitle">Make a list in the app first, then add the widget.</string>
+    <string name="widget_preview_list_name">Groceries</string>
+    <string name="widget_preview_other_list">Weekend</string>
+    <string name="widget_preview_count">1/3</string>
+    <string name="widget_preview_item_one">Bread</string>
+    <string name="widget_preview_item_two">Oat milk</string>
+    <string name="widget_preview_item_done">Bin bags</string>
 </resources>

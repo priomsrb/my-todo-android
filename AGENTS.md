@@ -2,11 +2,12 @@
 
 A Google Keep-inspired Android TODO app whose data lives in plain markdown files.
 
-Current state: **Phase 4 complete** — lists are real markdown files, one per list, in a folder the
+Current state: **Phase 5 complete** — lists are real markdown files, one per list, in a folder the
 user picks (app-private storage until they do); nested items expand and collapse, rows can be
 dragged to reorder and re-nest, and items are typed inline (Enter for the next one, Tab to nest),
-swiped away with an undo, coloured per list, searched across lists, and hidden once finished. No
-widget yet. See [TODO.md](TODO.md) for the roadmap.
+swiped away with an undo, coloured per list, searched across lists, and hidden once finished. Two
+Glance home-screen widgets show a list and tick it off, or list every list and open one.
+See [TODO.md](TODO.md) for the roadmap.
 
 ## Product invariants
 
@@ -51,6 +52,7 @@ One list per markdown file, inside a single folder the user picks in settings.
 | Android Gradle Plugin | 9.2.1 |
 | Kotlin | 2.3.21 (AGP 9 built-in Kotlin — see below) |
 | Compose BOM | 2026.09.00 (Material 3) |
+| Glance (widgets) | 1.2.0 |
 | compileSdk / targetSdk | 37 (Android 17) |
 | minSdk | 26 |
 | JDK | builds on the machine default (JDK 25); see the JDK note below |
@@ -149,6 +151,14 @@ app/src/main/java/dev/shafqat/mytodo/
     settings/                DataStore: SettingsRepository (folder URI),
                              DataStoreCollapseStore (collapse state),
                              DataStoreListPrefsStore (per-list colour, hide-completed)
+  widget/
+    ListWidget.kt            5a: one list, ticked off from the home screen
+    ListWidgetConfigActivity.kt  picks which list a new list widget shows
+    LauncherWidget.kt        5b: every list, tap to open one
+    ToggleItemAction.kt      a tick from a widget, resolved back to an item and written through
+    WidgetRows.kt            the pure projection of a list into widget rows
+    WidgetHost.kt            getting the repository, and the intents back into the app
+    WidgetColors.kt          the app's palette as Glance colour providers
   ui/
     navigation/MyTodoApp.kt  NavHost: lists → list/{listId} → search → settings
     lists/                   Keep-style grid of list cards
@@ -172,6 +182,7 @@ app/src/test/java/dev/shafqat/mytodo/
   ListEditingTest.kt         the Phase 4 edits as they reach the file, plus list prefs
   TodoItemListUiTest.kt      Compose: dragging rows (Robolectric)
   TodoItemEditingUiTest.kt   Compose: inline entry, Enter/Tab, swipe-to-delete
+  WidgetRowsTest.kt          widget rows, key round-trips and deep-link intents
   NavigationTransitionUiTest.kt  Compose: taps during screen transitions
 ```
 
@@ -242,6 +253,10 @@ app/src/test/java/dev/shafqat/mytodo/
 - **A new editor must not end itself.** A field reports "not focused" once before it is given focus;
   `ItemEditor` ignores that first report, or every freshly created item would be deleted the
   instant it appeared.
+- **Leaving the app ends the edit too.** Nothing tells a text field it lost focus when the whole
+  screen goes away, so without a lifecycle observer an item the user started typing and then
+  switched away from is left behind as a blank row — and saved into their file as one. This was
+  found in real use, not by the tests.
 - **Back closes the editor** (`BackHandler` in `TodoItemList`) before it leaves the screen.
   Otherwise the only way out of an edit is to start another one — and an editing row is a row that
   cannot be swiped away, since swipe is deliberately off mid-edit.
@@ -270,6 +285,32 @@ app/src/test/java/dev/shafqat/mytodo/
 - **A list with no colour of its own takes the tint of its position in the grid**, so a new folder
   still looks like Keep's wall of coloured notes. "No colour" is stored as a null index, never as
   palette entry zero, so changing the default later reaches every list that never chose one.
+
+## How the widgets work
+
+- **A widget shares the app's repository; it never opens the files itself.** Two readers of the same
+  directory would drift apart, and ticking something off on the home screen has to be the same edit
+  as ticking it off in the app. `widgetRepository()` waits for the first load, because a widget
+  update is often what started the process.
+- **A row carries a `CollapseKeys` key, not an item id.** Ids are fresh UUIDs on every parse, and a
+  widget can sit on the home screen for hours across several reloads. The key is resolved back to an
+  id when the tap arrives, so a tap either hits the item the user pointed at or does nothing.
+- **Derive keys from the whole tree, never from a filtered one.** Keys number same-named siblings by
+  position, so keys taken from a tree that has already had rows hidden name whichever item now sits
+  in that position. `widgetRows()` builds the key map first and filters second.
+- **A widget's write is flushed immediately** rather than left to the 500ms debounce: nothing keeps
+  the process alive once the tap has been handled.
+- **Each row's intent puts the list id in the data URI, not just an extra.** `Intent` equality
+  ignores extras, so rows that differed only by extra would share one `PendingIntent` and every row
+  in the launcher widget would open the same list.
+- **Updates are pushed from `MyTodoApplication`**, which watches `repository.lists` and redraws both
+  widgets on a 1s debounce — `lists` changes on every keystroke while an item is being typed.
+  The widget also calls `refresh()` before drawing, which is what catches a file edited elsewhere.
+- **`ListWidgetConfigActivity` sets `RESULT_CANCELED` first.** The launcher starts it before the
+  widget exists and treats a cancelled result as "do not place it".
+- Widget *rendering* has no automated coverage. The row projection, the key round-trip and the
+  intents are unit tested; the drawing is checked on the emulator, the same split the app itself
+  uses (see "Checking behaviour on a device").
 
 ## Navigation
 

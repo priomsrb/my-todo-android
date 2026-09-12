@@ -3,15 +3,17 @@ package dev.shafqat.mytodo.data.collapse
 import dev.shafqat.mytodo.model.TodoItem
 
 /**
- * Stable identity for an item, used to remember which items are collapsed.
+ * Stable identity for an item, used to remember which items are collapsed and to name an item to
+ * anything living outside the app's memory — a home-screen widget, chiefly.
  *
- * [TodoItem.id] is a fresh UUID every time a file is parsed, so it cannot be persisted. What does
- * survive a reload is where an item sits in the tree, so a key is the file name followed by the
- * text of each item on the path down to it. Siblings sharing the same text are disambiguated by
- * their position (`Buy milk#2`).
+ * [TodoItem.id] is a fresh UUID every time a file is parsed, so it cannot be persisted or handed
+ * out. What does survive a reload is where an item sits in the tree, so a key is the file name
+ * followed by the text of each item on the path down to it. Siblings sharing the same text are
+ * disambiguated by their position (`Buy milk#2`).
  *
- * The trade-off: editing an item's text forgets that it was collapsed. That is a better failure
- * than remembering the wrong item, and re-collapsing costs one tap.
+ * The trade-off: editing an item's text forgets that it was collapsed, and a widget tapped after
+ * such an edit ticks nothing rather than the wrong thing. Both are better failures than acting on
+ * the wrong item.
  */
 object CollapseKeys {
 
@@ -44,11 +46,42 @@ object CollapseKeys {
         return found
     }
 
+    /**
+     * The id of the item [key] names, or null when nothing in this tree answers to it.
+     *
+     * The inverse of [keyOf], and what turns a tap on a widget — which can only carry a key — back
+     * into an item the repository can act on. A key that no longer resolves means the item was
+     * edited or removed since the widget was drawn, and the tap is dropped.
+     */
+    fun idOf(items: List<TodoItem>, fileName: String, key: String): String? {
+        var found: String? = null
+        mapWithKeys(items, fileName) { item, itemKey ->
+            if (itemKey == key) found = item.id
+            item
+        }
+        return found
+    }
+
     /** Keys for every item that has children — what "collapse all" writes. */
     fun collapsibleKeys(items: List<TodoItem>, fileName: String): Set<String> {
         val keys = mutableSetOf<String>()
         mapWithKeys(items, fileName) { item, itemKey ->
             if (item.children.isNotEmpty()) keys += itemKey
+            item
+        }
+        return keys
+    }
+
+    /**
+     * Every item's key, by id — one walk instead of one walk per item.
+     *
+     * Always derive these from the *whole* tree. Keys number same-named siblings by position, so a
+     * tree that has already had rows filtered out of it produces keys that name different items.
+     */
+    fun keysById(items: List<TodoItem>, fileName: String): Map<String, String> {
+        val keys = mutableMapOf<String, String>()
+        mapWithKeys(items, fileName) { item, itemKey ->
+            keys[item.id] = itemKey
             item
         }
         return keys

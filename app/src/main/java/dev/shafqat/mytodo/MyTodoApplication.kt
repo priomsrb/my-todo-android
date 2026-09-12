@@ -9,10 +9,15 @@ import dev.shafqat.mytodo.data.settings.DataStoreListPrefsStore
 import dev.shafqat.mytodo.data.settings.SettingsRepository
 import dev.shafqat.mytodo.data.store.LocalDirectoryStore
 import dev.shafqat.mytodo.data.store.SafDirectoryStore
+import dev.shafqat.mytodo.widget.updateTodoWidgets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -41,11 +46,29 @@ class MyTodoApplication : Application() {
     private var attachedFolderUri: String? = null
     private var hasAttachedStore = false
 
+    @OptIn(FlowPreview::class)
     override fun onCreate() {
         super.onCreate()
         applicationScope.launch {
             settings.todoFolderUri.collectLatest { folderUri -> attachStore(folderUri) }
         }
+        applicationScope.launch { keepWidgetsInStep() }
+    }
+
+    /**
+     * Redraws the home-screen widgets whenever the lists change.
+     *
+     * The widgets follow the repository rather than the files, so an edit shows up on the home
+     * screen without waiting for a save. Debounced because `lists` changes on every keystroke while
+     * an item is being typed, and the first value is dropped because it is just the initial load —
+     * the widgets are drawing themselves at that point anyway.
+     */
+    private suspend fun keepWidgetsInStep() {
+        repository.lists
+            .drop(1)
+            .distinctUntilChanged()
+            .debounce(WIDGET_UPDATE_DEBOUNCE_MILLIS)
+            .collectLatest { updateTodoWidgets() }
     }
 
     private suspend fun attachStore(folderUri: String?) {
@@ -76,6 +99,7 @@ class MyTodoApplication : Application() {
 
     private companion object {
         const val DEFAULT_FOLDER_NAME = "todo"
+        const val WIDGET_UPDATE_DEBOUNCE_MILLIS = 1_000L
     }
 }
 

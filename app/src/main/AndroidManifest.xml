@@ -12,16 +12,55 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyTodo">
 
+        <!-- singleTop so that a widget tap while the app is already open arrives at onNewIntent
+             instead of stacking a second copy of the app. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.MyTodo">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Asks which list a freshly dropped list widget should show. Not exported: only the
+             launcher starts it, and it does so by the name in the appwidget-provider XML. -->
+        <activity
+            android:name=".widget.ListWidgetConfigActivity"
+            android:exported="false"
+            android:label="@string/widget_pick_list"
+            android:theme="@style/Theme.MyTodo">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name=".widget.ListWidgetReceiver"
+            android:exported="true"
+            android:label="@string/list_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/list_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.LauncherWidgetReceiver"
+            android:exported="true"
+            android:label="@string/launcher_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/launcher_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

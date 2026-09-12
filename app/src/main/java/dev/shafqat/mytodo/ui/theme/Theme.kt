@@ -7,7 +7,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val LightColors = lightColorScheme(
+/**
+ * Exposed rather than private so the home-screen widgets can be built from the same palette:
+ * a widget that did not match the app would read as a different product.
+ */
+val KeepLightColors = lightColorScheme(
     primary = KeepYellowDark,
     onPrimary = Color.White,
     primaryContainer = KeepYellow,
@@ -26,7 +30,7 @@ private val LightColors = lightColorScheme(
     inversePrimary = KeepYellow,
 )
 
-private val DarkColors = darkColorScheme(
+val KeepDarkColors = darkColorScheme(
     primary = KeepYellow,
     onPrimary = KeepOnSurface,
     primaryContainer = KeepYellowDark,
@@ -55,7 +59,7 @@ fun MyTodoTheme(
 ) {
     // Dynamic color is deliberately off: the Keep-like yellow identity is the point.
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
+        colorScheme = if (darkTheme) KeepDarkColors else KeepLightColors,
         typography = MyTodoTypography,
         content = content,
     )
