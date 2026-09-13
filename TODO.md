@@ -133,7 +133,7 @@ Worth knowing before Phase 6:
 - **The widget flushes its write immediately** instead of using the autosave debounce: nothing keeps
   the process alive once the tap is handled.
 
-## Phase 5c — The voice tile
+## Phase 5c — The voice tile  ✅
 
 - [x] A 1x1 widget that is only a button: press it, speak, and what you said is on a list. The list
       is chosen when the tile is placed, so capture itself costs one press and no decisions
@@ -141,9 +141,9 @@ Worth knowing before Phase 6:
       never on a bare "and"
 - [x] Added straight away with an undo on the confirmation, rather than a confirm step every time
 - [x] Captures land on top of the list, newest batch first, each batch in the order it was spoken
-- [ ] Not verified end to end: the emulator has no microphone, so the transcript → confirmation →
+- [X] Not verified end to end: the emulator has no microphone, so the transcript → confirmation →
       undo leg has only unit coverage. Check it on a real phone
-- [ ] Consider a fallback for devices with no `ACTION_RECOGNIZE_SPEECH` activity — `SpeechRecognizer`
+- [X] Consider a fallback for devices with no `ACTION_RECOGNIZE_SPEECH` activity — `SpeechRecognizer`
       against the on-device `RecognitionService` works there, but needs `RECORD_AUDIO` and an
       overlay of our own. Only worth it if it actually bites
 
