@@ -2,10 +2,11 @@
 
 A Google Keep-inspired Android TODO app whose data lives in plain markdown files.
 
-Current state: **Phase 5 complete** — lists are real markdown files, one per list, in a folder the
-user picks (app-private storage until they do); nested items expand and collapse, rows are dragged
-by the handle to reorder and re-nest, and items are typed inline (Enter for the next one, Tab to
-nest), swiped away with an undo, coloured per list, searched across lists, and hidden once finished. Three
+Current state: **Phase 6 complete** — lists are real markdown files, one per list, in a folder the
+user picks (app-private storage until they do); nested items expand and collapse, rows are lifted
+by the handle and dragged to reorder and re-nest, and items are typed inline (Enter for the next
+one, Tab to nest), swiped away with an undo, coloured per list, searched across lists, and hidden
+once finished. Three
 Glance home-screen widgets show a list and tick it off, list every list and open one, or take a
 spoken item straight onto a list. See [TODO.md](TODO.md) for the roadmap.
 
@@ -181,6 +182,7 @@ app/src/test/java/dev/shafqat/mytodo/
   TreeMoveTest.kt            the move maths, incl. exhaustive invariants
   MoveItemTest.kt            moves reaching the file
   AutoScrollTest.kt          when a drag scrolls the list
+  DragOverlayTest.kt         where the floating row is drawn relative to its slot
   OutlineEditTest.kt         indent/outdent and putting a deleted subtree back
   CompletedTest.kt           hiding finished items vs. sinking them
   SearchTest.kt              matching across lists
@@ -228,6 +230,25 @@ app/src/test/java/dev/shafqat/mytodo/
   exactly what a drop would produce.
 - **Moving invalidates collapse keys**, since they are paths. `moveItem` re-derives and re-persists
   them for that file afterwards.
+- **The dragged row is drawn away from its slot.** The preview gives it the slot it would land in;
+  a `graphicsLayer` on that row then offsets it onto the finger, so it follows continuously while
+  the slot underneath reads as the gap. `floatingOffset` is pure and tested: it centres the row on
+  the finger and clamps it inside the viewport, so a finger that runs past the end of a list which
+  cannot scroll any further does not drag the row off screen. The row is lifted over its neighbours
+  with `zIndex`, and they use `animateItem` to slide into the places it vacates.
+- **Letting go settles, it does not snap.** `settlingItemId` is deliberately separate from
+  `draggedItemId`: the move is committed the instant the finger lifts, and the settle is only the
+  drop animation sliding the leftover offset to zero. Feeding it back into the preview would move
+  the item twice. Picking a row up again cancels any settle still running.
+- **The dragged row's own slot wins the hit test.** Neighbours are mid-animation while it travels,
+  and a plain hit test against a row still sliding can hand the target back to where it came from
+  one frame after it left — the row then flickers between two slots. If the finger is still inside
+  the dragged row's slot, the target does not move.
+- **Off the ends means off the *rows*, not off the viewport.** The list has top and bottom content
+  padding, which is inside the viewport but outside every row. Testing against `viewportStartOffset`
+  left the top padding falling through to the "past the end" branch, so nudging the top row up by
+  half a row sent it to the bottom of the list. The bounds to compare against are the first and last
+  visible rows; a finger between two rows keeps whatever target it had.
 - **The drag starts on movement, not on a hold.** The handle uses `detectDragGestures`, so a row
   moves from the first movement past touch slop; there is no long-press threshold to wait out. The
   handle consumes the gesture, which is what stops that same movement from scrolling the list or

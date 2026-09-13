@@ -91,7 +91,8 @@ data class RowEditCallbacks(
  * Ticked items render grayed out and struck through. A collapsed parent shows how many descendants
  * are hidden underneath it. The drag handle starts a reorder the moment the finger moves on it, no
  * hold needed; while a row is being dragged it lifts with a shadow and its indent animates to the
- * depth it would land at.
+ * depth it would land at. [isDragging] stays on for the moment after the drop while the row slides
+ * back into its slot, so the lift fades out with the movement rather than before it.
  *
  * The handle is only drawn when reordering is actually available.
  *

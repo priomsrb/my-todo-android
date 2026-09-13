@@ -31,10 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dev.shafqat.mytodo.R
@@ -136,8 +138,22 @@ fun TodoItemList(
             val currentIndex by rememberUpdatedState(index)
             val currentDepth by rememberUpdatedState(row.depth)
             val isEditing = row.item.id == editingItemId
+            val isFloating = row.item.id == dragState.floatingItemId
 
             SwipeToDelete(
+                modifier = when {
+                    // The dragged row is drawn lifted out of the list and offset onto the finger,
+                    // so it travels with it rather than hopping a whole slot at a time. The slot it
+                    // has been given underneath is the gap it would drop into.
+                    isFloating -> Modifier
+                        .zIndex(1f)
+                        .graphicsLayer {
+                            translationY = dragState.floatingOffsetFor(row.item.id)
+                        }
+                    // Everything else slides out of its way instead of teleporting.
+                    dragState.isDragging -> Modifier.animateItem()
+                    else -> Modifier
+                },
                 // Swiping a row that is mid-edit would be an accident, not an intention.
                 enabled = !isEditing,
                 onDelete = { onDelete(row.item.id) },
@@ -145,7 +161,7 @@ fun TodoItemList(
                 TodoRow(
                     item = row.item,
                     depth = row.depth,
-                    isDragging = row.item.id == draggedId,
+                    isDragging = isFloating,
                     isEditing = isEditing,
                     onStartEdit = { editingItemId = row.item.id },
                     showDragHandle = dragEnabled,
@@ -205,6 +221,7 @@ fun TodoItemList(
 private fun SwipeToDelete(
     enabled: Boolean,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val delete by rememberUpdatedState(onDelete)
@@ -227,6 +244,7 @@ private fun SwipeToDelete(
 
     SwipeToDismissBox(
         state = state,
+        modifier = modifier,
         gesturesEnabled = enabled,
         backgroundContent = {
             if (state.targetValue != SwipeToDismissBoxValue.Settled) {

@@ -51,8 +51,9 @@ Reorder vertically *and* re-nest horizontally, always moving the subtree.
 
 - [x] Drag the handle to start a reorder — no long press: the drag begins as soon as the finger
       moves on the handle (it waited out a long press until Phase 6)
-- [x] Live feedback: the row relocates into the slot it would land in, rather than floating over a
-      gap — the screen previews the pending move by applying `moveSubtree` to the tree
+- [x] Live feedback: the screen previews the pending move by applying `moveSubtree` to the tree, so
+      the row is shown in the slot it would land in (Phase 6 keeps that preview and draws the row
+      itself offset onto the finger, leaving the slot as the gap)
 - [x] Horizontal drag indents/outdents; target depth follows the drag's x offset
 - [x] Legal-depth rules in `allowedDepthRange`: at most one level deeper than the row above, never
       shallower than the row below, never inside a collapsed parent
@@ -147,12 +148,19 @@ Worth knowing before Phase 6:
       against the on-device `RecognitionService` works there, but needs `RECORD_AUDIO` and an
       overlay of our own. Only worth it if it actually bites
 
-## Phase 6 - Polish
+## Phase 6 - Polish ✅
 
 - [x] Reordering starts immediately: the drag handle no longer waits out a long press, so a row
       follows the finger from the first movement
-- [ ] Consider a floating drag overlay: the dragged row currently jumps between slots rather than
-      following the finger continuously, which is simpler but less fluid than Keep
+- [x] Floating drag overlay: the dragged row is lifted out of the list and drawn offset onto the
+      finger, so it travels with it pixel by pixel instead of hopping a whole slot at a time. The
+      slot it holds underneath is the gap it would drop into — still the same `moveSubtree` preview,
+      now with the row drawn away from it
+- [x] The rows it passes slide into their new places (`animateItem`) rather than teleporting, and a
+      dropped row slides the last few pixels home instead of snapping
+- [x] Fixed while wiring that up: a finger in the list's *top padding* — above the first row but
+      inside the viewport — hit no row and fell through to "past the end of the list", so nudging
+      the top row up by about half a row flung it to the bottom
 
 ## Phase 7 — Robustness and extras
 

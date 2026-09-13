@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -169,6 +170,59 @@ class TodoItemListUiTest {
 
         assertEquals(listOf("Alpha", "Bravo", "Charlie", "Delta"), renderedOrder)
         assertEquals("Bravo should now be nested under Alpha", 1, renderedRows[1].second)
+    }
+
+    @Test
+    fun `the dragged row follows the finger between slots`() {
+        // The row used to be drawn only ever *in* a slot, so it hopped a whole row at a time and
+        // spent most of a drag somewhere other than under the finger.
+        composeRule.setContent { Harness() }
+
+        fun handle() = composeRule.onAllNodesWithContentDescription("Reorder")[1]
+        val before = composeRule.onNodeWithText("Bravo").getUnclippedBoundsInRoot().top
+
+        var slop = 0f
+        handle().performTouchInput {
+            slop = viewConfiguration.touchSlop
+            down(center)
+        }
+
+        // A quarter of a row: nowhere near far enough to change slots, so a row that only ever
+        // draws in its slot would still be exactly where it started.
+        val nudge = rowHeightPx() / 4f
+        // The frame clock is driven by hand from here, because the drag's auto-scroll loop asks for
+        // a frame every frame: an automatically advancing clock would never call the test idle.
+        composeRule.mainClock.autoAdvance = false
+        handle().performTouchInput { moveBy(Offset(0f, nudge + slop)) }
+        repeat(3) { composeRule.mainClock.advanceTimeByFrame() }
+
+        val during = composeRule.onNodeWithText("Bravo").getUnclippedBoundsInRoot().top
+        val followed = with(composeRule.density) { (during - before).toPx() }
+
+        handle().performTouchInput { up() }
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+
+        assertEquals("the row should have travelled with the finger", nudge, followed, 6f)
+        assertEquals(listOf("Alpha", "Bravo", "Charlie", "Delta"), renderedOrder)
+    }
+
+    @Test
+    fun `nudging the top row upward does not send it to the end of the list`() {
+        // The regression: a finger above the first row but still inside the list's top padding hit
+        // no row at all, and the fallback was "past the end of the list" — so a small upward nudge
+        // on the top row dropped it at the bottom.
+        composeRule.setContent { Harness() }
+
+        listOf(0.25f, 0.5f, 0.55f, 0.6f, 0.75f, 1f).forEach { fraction ->
+            dragRow(rowIndex = 0, dy = -rowHeightPx() * fraction)
+
+            assertEquals(
+                "nudging up by $fraction of a row should leave Alpha on top",
+                listOf("Alpha", "Bravo", "Charlie", "Delta"),
+                renderedOrder,
+            )
+        }
     }
 
     @Test
