@@ -11,6 +11,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -41,25 +44,53 @@ object Routes {
 }
 
 /**
- * @param openListId a list a home-screen widget asked to open, or null for the usual start.
- * @param onListOpened called once that request has been navigated to, so the next tap on the same
- *   widget row counts as a new request rather than being swallowed as a repeat.
+ * What a home-screen widget asked the app to do on its way in.
+ *
+ * @param startNewItem set by the list widget's "+": land in the list with an empty item already
+ *   open for typing, rather than just showing it.
+ */
+data class OpenListRequest(
+    val listId: String,
+    val startNewItem: Boolean = false,
+)
+
+/**
+ * @param openRequest what a home-screen widget asked for, or null for the usual start.
+ * @param onRequestHandled called once that request has been navigated to, so the next tap on the
+ *   same widget counts as a new request rather than being swallowed as a repeat.
  */
 @Composable
 fun MyTodoApp(
-    openListId: String? = null,
-    onListOpened: () -> Unit = {},
+    openRequest: OpenListRequest? = null,
+    onRequestHandled: () -> Unit = {},
 ) {
     val navController = rememberNavController()
 
+    // The back stack entry that still owes someone a new row.
+    //
+    // The *entry*, not the list. Opening a list the app is already showing pops the screen and
+    // pushes a new one, and for the length of the fade both are composed — so a request addressed
+    // to "the screen showing this list" is seen by two of them, and the one on its way out can get
+    // there first. It then adds the row to its own dying ViewModel, taking the focus with it: the
+    // surviving screen opens no editor, no keyboard appears, and because nothing is being edited
+    // nothing cleans the blank row up either. Naming the entry leaves only one possible reader.
+    //
+    // Held here rather than in the route because it is an event, not part of the destination's
+    // identity: as an argument it would fire again every time the entry was rebuilt.
+    var startNewItemIn by remember { mutableStateOf<String?>(null) }
+
     // A widget opens a list *on top of* the home screen rather than instead of it, so back still
     // goes where it always goes.
-    LaunchedEffect(openListId) {
-        if (openListId != null) {
-            navController.navigate(Routes.listDetail(openListId)) {
+    LaunchedEffect(openRequest) {
+        if (openRequest != null) {
+            navController.navigate(Routes.listDetail(openRequest.listId)) {
                 popUpTo(Routes.LISTS)
             }
-            onListOpened()
+            // Read after navigating, because the entry being addressed is the one just pushed.
+            if (openRequest.startNewItem) {
+                startNewItemIn = navController.currentBackStackEntry?.id
+            }
+            onRequestHandled()
         }
     }
 
@@ -91,10 +122,13 @@ fun MyTodoApp(
                 route = Routes.LIST_DETAIL,
                 arguments = listOf(navArgument("listId") { type = NavType.StringType }),
             ) { entry ->
+                val listId = requireNotNull(entry.arguments?.getString("listId"))
                 Screen(entry) {
                     TodoListScreen(
-                        listId = requireNotNull(entry.arguments?.getString("listId")),
+                        listId = listId,
                         onBack = { navController.popBackStack() },
+                        startNewItem = startNewItemIn == entry.id,
+                        onNewItemStarted = { startNewItemIn = null },
                         // A rename renames the file, and the file name is this route's argument,
                         // so the screen has to be reopened under the id the list now has.
                         onRenamed = { newListId ->

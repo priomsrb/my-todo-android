@@ -63,6 +63,8 @@ fun TodoListScreen(
     listId: String,
     onBack: () -> Unit,
     onRenamed: (String) -> Unit,
+    startNewItem: Boolean = false,
+    onNewItemStarted: () -> Unit = {},
     viewModel: TodoListViewModel = viewModel(
         key = "todo-list-$listId",
         factory = todoListViewModelFactory(listId),
@@ -89,6 +91,16 @@ fun TodoListScreen(
     // Renaming a list renames its file, and the file name is the id this screen was opened with,
     // so the screen has to follow the list to its new route.
     LaunchedEffect(renamedListId) { renamedListId?.let(onRenamed) }
+
+    // The widget's "+" asked for a row to type in. Reported back straight away rather than when the
+    // item appears: the request is answered by having started it, and leaving it outstanding would
+    // add a second empty row the next time this screen composed.
+    LaunchedEffect(startNewItem) {
+        if (startNewItem) {
+            viewModel.addItemAtTop()
+            onNewItemStarted()
+        }
+    }
 
     val deletedMessage = stringResource(R.string.item_deleted)
     val undoLabel = stringResource(R.string.undo)

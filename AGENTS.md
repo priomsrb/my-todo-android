@@ -7,8 +7,9 @@ user picks (app-private storage until they do); nested items expand and collapse
 by the handle and dragged to reorder and re-nest, and items are typed inline (Enter for the next
 one, Tab to nest), swiped away with an undo, coloured per list, searched across lists, and hidden
 once finished. Three
-Glance home-screen widgets show a list and tick it off, list every list and open one, or take a
-spoken item straight onto a list. See [TODO.md](TODO.md) for the roadmap.
+Glance home-screen widgets show a list and tick it off (with a mic and a + in the corner for
+adding one by voice or by typing), list every list and open one, or take a spoken item straight
+onto a list. See [TODO.md](TODO.md) for the roadmap.
 
 ## Product invariants
 
@@ -154,7 +155,7 @@ app/src/main/java/dev/shafqat/mytodo/
                              DataStoreCollapseStore (collapse state),
                              DataStoreListPrefsStore (per-list colour, hide-completed)
   widget/
-    ListWidget.kt            5a: one list, ticked off from the home screen
+    ListWidget.kt            5a: one list, ticked off from the home screen; mic and + in the corner
     LauncherWidget.kt        5b: every list, tap to open one
     VoiceWidget.kt           5c: a 1x1 tile that is only a button — press, speak, it is on the list
     VoiceCaptureActivity.kt  the transparent overlay: dictation sheet, then a confirmation + undo
@@ -343,6 +344,45 @@ app/src/test/java/dev/shafqat/mytodo/
   widget exists and treats a cancelled result as "do not place it". Both per-list widgets share the
   base class rather than each restating that contract; a subclass supplies only the widget to
   redraw and the title to ask under.
+- **The list widget's corner carries two buttons: a mic and a "+".** The mic is the voice tile's
+  press, same intent and same activity. The "+" opens the list in the app with an empty item already
+  waiting at the top — the other half of the same idea, for when dictation is the wrong tool. They
+  are not in the header because the header is itself the tap target that opens the list, and buttons
+  inside it would be targets inside a target. They float rather than taking a row of their own, and
+  the `LazyColumn` ends with a spacer their height so the last item can still be scrolled clear.
+- **The buttons are `primaryContainer`, not the list's tint.** `NoteColors[0]` is pure white, so a
+  list with no colour of its own would have drawn invisible buttons on the widget's white
+  background. The app's own "Add item" FAB uses the same pair, which is also why the corner reads
+  the same in both places.
+- **The "+" is a request the app carries out, not an edit the widget makes.** Typing needs a
+  keyboard and the list to see it against, which is a screen, not an overlay — so the widget only
+  asks. `MainActivity` turns the intent into an `OpenListRequest`, the NavHost navigates and
+  remembers which list still owes a row, and `TodoListScreen` spends that request once.
+- **That request is state, not part of the route.** Putting `newItem` in the route would make it
+  part of the destination's identity, and navigating back to the list later — or restoring it after
+  a rotation — would add a second empty row. It is an event, so it is held beside the NavHost and
+  cleared the moment the screen acts on it.
+- **It names the back stack *entry*, not the list.** Pressing "+" for a list the app is already
+  showing pops that screen and pushes a new one, and for the length of the fade both are composed.
+  A request addressed to "the screen showing this list" is therefore seen by two of them, and the
+  one on its way out can get there first: it adds the row to its own dying ViewModel and takes the
+  focus with it, so the surviving screen opens no editor, no keyboard appears, and — since nothing
+  is being edited — nothing deletes the blank row either. One press, one stray row, no keyboard.
+  `navController.currentBackStackEntry?.id`, read *after* navigating, leaves exactly one reader.
+  This is why it was intermittent: with a slower tap the outgoing entry was already gone.
+- **The editor waits for the window before asking for focus.** A widget tap opens the app and the
+  editor in the same breath, and a focus request made while the window is still coming forward is
+  half-honoured — Compose gives the field its caret, but the keyboard never comes, and nothing asks
+  again once the window settles. `ItemEditor` waits on `LocalWindowInfo.isWindowFocused` first. It
+  is a no-op for every edit begun inside the app, where the window is focused already.
+- **`addItemAtTop` waits for storage before it writes.** A cold start from the "+" can reach the
+  ViewModel before the folder has been read, and `mutate` drops an edit to a list it cannot find —
+  silently, since there is nothing to find. It waits for the list to appear, with the same
+  give-up timeout `widgetRepository()` uses.
+- **The "+" adds at the top; the screen's own "Add item" still appends.** Same reasoning as a
+  dictated item: something you reached for the widget to jot down has not been dealt with yet.
+  Inside the app the list is in front of you and the end is where you are looking.
+
 ### The voice tile
 
 - **It is a button, not a view.** `VoiceWidget` draws a mic on the list's tint and nothing else, so

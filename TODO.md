@@ -147,6 +147,25 @@ Worth knowing before Phase 6:
 - [X] Consider a fallback for devices with no `ACTION_RECOGNIZE_SPEECH` activity — `SpeechRecognizer`
       against the on-device `RecognitionService` works there, but needs `RECORD_AUDIO` and an
       overlay of our own. Only worth it if it actually bites
+- [x] The same button in the list widget's bottom-right corner, so a list you are already looking at
+      can be spoken to without a second tile. It floats over the items — the header is already the
+      tap target that opens the list — and the list ends with a spacer its height so the last item
+      still scrolls clear of it. Checked on the emulator: the press opens the dictation sheet
+      prompting "Add to <list>", in both themes, and the picker's static preview matches
+- [x] A "+" beside it for when dictation is the wrong tool — a noisy room, or something quicker
+      typed. It opens the list in the app with an empty item already waiting at the top and the
+      keyboard up. The widget only asks; the app carries it out, because typing needs a screen.
+      Checked on the emulator from a cold start and with the app already open, and that backing out
+      without typing leaves no blank row behind (the usual "an empty item is deleted when the edit
+      ends" rule does the work — verified via home, the back key and the top-bar arrow)
+- [x] Fixed straight after, reported from real use: pressing "+" a second time often opened the list
+      with no keyboard and left a blank row behind. Opening a list the app is already showing leaves
+      the outgoing screen composed beside the incoming one, and the request was addressed to "the
+      screen showing this list" — so the dying one could take it, adding the row to its own
+      ViewModel and the focus along with it. The request now names the back stack entry. Reproduced
+      first (8/8 failures under a tight tap loop, one stray row each), then 22/22 clean after
+- [x] Found while fixing that: a focus request made while the window is still coming forward gets
+      the caret but not the keyboard. `ItemEditor` now waits for `isWindowFocused`
 
 ## Phase 6 - Polish ✅
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The circle behind the mic in the list widget's static preview. The widget itself draws the
+     same button from the Compose palette; this is only for the picker. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/widget_preview_accent" />
+</shape>

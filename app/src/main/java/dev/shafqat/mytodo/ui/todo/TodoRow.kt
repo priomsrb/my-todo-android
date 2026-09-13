@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -47,6 +48,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -57,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.totalCount
+import kotlinx.coroutines.flow.first
 
 /** Indent applied per nesting level. Depth is unbounded, so this only scales the padding. */
 val IndentPerLevel = 24.dp
@@ -249,7 +252,16 @@ private fun ItemEditor(
     // would end the edit before it began — and end it by deleting a brand new, still-empty item.
     var hasBeenFocused by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    // Focus is asked for only once the window actually has it. A widget tap opens the app and this
+    // editor in the same breath, and a focus request made while the window is still coming forward
+    // is half-honoured: Compose gives the field the caret, but the keyboard that should come with
+    // it never appears — and nothing asks again once the window settles. Waiting is a no-op for
+    // every edit started from inside the app, where the window is focused already.
+    val windowInfo = LocalWindowInfo.current
+    LaunchedEffect(Unit) {
+        snapshotFlow { windowInfo.isWindowFocused }.first { it }
+        focusRequester.requestFocus()
+    }
 
     BasicTextField(
         value = value,

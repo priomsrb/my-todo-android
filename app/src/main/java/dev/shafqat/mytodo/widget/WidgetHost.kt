@@ -58,6 +58,26 @@ internal fun openListIntent(context: Context, listId: String?): Intent =
     }
 
 /**
+ * An intent that opens [listId] in the app with a fresh, empty item waiting at the top of it.
+ *
+ * The counterpart to the voice tile for the times dictation is the wrong tool — a noisy room, or an
+ * item easier typed than said. It goes through the app rather than capturing in place because
+ * typing needs a keyboard and a list to see it against, which is a screen, not an overlay.
+ *
+ * `mytodo://add/` rather than `mytodo://list/` so this and the header's plain "open the list" do
+ * not collapse into one `PendingIntent`: `Intent` equality ignores extras, and the widget holds
+ * both at once.
+ */
+internal fun newItemIntent(context: Context, listId: String): Intent =
+    Intent(context, MainActivity::class.java).apply {
+        action = Intent.ACTION_VIEW
+        data = ("mytodo://add/" + Uri.encode(listId)).toUri()
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        putExtra(MainActivity.EXTRA_LIST_ID, listId)
+        putExtra(MainActivity.EXTRA_NEW_ITEM, true)
+    }
+
+/**
  * An intent that opens the voice capture overlay for [listId], with [listName] along for the ride.
  *
  * The name is passed rather than looked up because the overlay's whole job is to get the

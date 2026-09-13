@@ -78,6 +78,7 @@
     <string name="voice_widget_description">Press, speak, and it is on the list.</string>
     <string name="voice_widget_pick_list">Add to which list?</string>
     <string name="voice_widget_action">Add to %1$s by voice</string>
+    <string name="widget_add_action">Add an item to %1$s</string>
     <string name="voice_prompt">Add to %1$s</string>
     <string name="voice_no_recognizer">No speech recognition on this device.</string>
     <string name="voice_added_one">Added “%1$s”</string>

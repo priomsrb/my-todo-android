@@ -7,6 +7,7 @@ import dev.shafqat.mytodo.data.collapse.CollapseKeys
 import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.TodoList
+import dev.shafqat.mytodo.widget.newItemIntent
 import dev.shafqat.mytodo.widget.openListIntent
 import dev.shafqat.mytodo.widget.widgetRows
 import org.junit.Assert.assertEquals
@@ -129,6 +130,35 @@ class WidgetRowsTest {
 
         assertNotEquals(groceries.filterEquals(chores), true)
         assertEquals("groceries.md", groceries.getStringExtra(MainActivity.EXTRA_LIST_ID))
+    }
+
+    /**
+     * The header opens the list; the corner's "+" opens it with a row waiting to be typed in. They
+     * name the same list, and `Intent` equality ignores extras, so without distinct data URIs the
+     * launcher would hand both the same `PendingIntent` and the "+" would do nothing extra.
+     */
+    @Test
+    fun `opening a list and adding to it are not the same intent`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val open = openListIntent(context, "groceries.md")
+        val add = newItemIntent(context, "groceries.md")
+
+        assertNotEquals(open.filterEquals(add), true)
+        assertEquals("groceries.md", add.getStringExtra(MainActivity.EXTRA_LIST_ID))
+        assertEquals(true, add.getBooleanExtra(MainActivity.EXTRA_NEW_ITEM, false))
+        assertEquals(false, open.getBooleanExtra(MainActivity.EXTRA_NEW_ITEM, false))
+    }
+
+    /** Two lists' "+" buttons must not collapse into one either. */
+    @Test
+    fun `add intents for different lists are not interchangeable`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val groceries = newItemIntent(context, "groceries.md")
+        val chores = newItemIntent(context, "chores.md")
+
+        assertNotEquals(groceries.filterEquals(chores), true)
     }
 
     @Test

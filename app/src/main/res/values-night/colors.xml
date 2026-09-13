@@ -7,4 +7,7 @@
     <color name="widget_preview_background">#202124</color>
     <color name="widget_preview_text">#E8EAED</color>
     <color name="widget_preview_text_secondary">#9AA0A6</color>
+
+    <!-- KeepYellowDark; the glyph over it stays KeepOnSurface, as in the dark scheme. -->
+    <color name="widget_preview_accent">#E0A800</color>
 </resources>

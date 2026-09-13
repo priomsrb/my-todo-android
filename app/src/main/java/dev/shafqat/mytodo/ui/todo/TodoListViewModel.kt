@@ -14,9 +14,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * A deleted subtree, kept only long enough for the undo snackbar to offer it back.
@@ -64,6 +66,24 @@ class TodoListViewModel(
     /** Adds an empty item at the end of the list and opens it for typing. */
     fun addItem() {
         viewModelScope.launch { _focusItemId.value = repository.addItem(listId, "").id }
+    }
+
+    /**
+     * The widget's "+": an empty item at the very top of the list, open for typing.
+     *
+     * The top rather than the end, for the same reason a dictated item goes there — something you
+     * reached for the widget to jot down is something you have not dealt with yet, and appending
+     * would file it below everything already seen and settled. The screen's own "Add item" still
+     * appends, because there the list is in front of you and the end is where you are looking.
+     */
+    fun addItemAtTop() {
+        viewModelScope.launch {
+            // A cold start from the widget can arrive here before the folder has been read, and an
+            // edit to a list that is not loaded yet is silently dropped. The timeout is a giving-up
+            // point, not an expectation: past it there is nothing to add to and nothing to focus.
+            withTimeoutOrNull(LOAD_TIMEOUT_MILLIS) { list.first { it != null } } ?: return@launch
+            _focusItemId.value = repository.addItemAt(listId, "", index = 0).id
+        }
     }
 
     /** Enter: a new item on the row after [afterItemId], open for typing. */
@@ -168,5 +188,10 @@ class TodoListViewModel(
     private fun updatePrefs(transform: (ListPrefs) -> ListPrefs) {
         val current = list.value?.prefs ?: ListPrefs.Default
         viewModelScope.launch { repository.setListPrefs(listId, transform(current)) }
+    }
+
+    private companion object {
+        /** How long [addItemAtTop] waits for storage on a cold start before giving up. */
+        const val LOAD_TIMEOUT_MILLIS = 5_000L
     }
 }
