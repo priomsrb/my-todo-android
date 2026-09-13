@@ -5,9 +5,9 @@ A Google Keep-inspired Android TODO app whose data lives in plain markdown files
 Current state: **Phase 5 complete** — lists are real markdown files, one per list, in a folder the
 user picks (app-private storage until they do); nested items expand and collapse, rows are dragged
 by the handle to reorder and re-nest, and items are typed inline (Enter for the next one, Tab to
-nest), swiped away with an undo, coloured per list, searched across lists, and hidden once finished. Two
-Glance home-screen widgets show a list and tick it off, or list every list and open one.
-See [TODO.md](TODO.md) for the roadmap.
+nest), swiped away with an undo, coloured per list, searched across lists, and hidden once finished. Three
+Glance home-screen widgets show a list and tick it off, list every list and open one, or take a
+spoken item straight onto a list. See [TODO.md](TODO.md) for the roadmap.
 
 ## Product invariants
 
@@ -137,6 +137,7 @@ app/src/main/java/dev/shafqat/mytodo/
     TreeMove.kt              flatten/rebuild, moveSubtree, insert/indent/outdent — the move maths
     Completed.kt             hiding finished items (a view) and sinking them (an edit)
     Search.kt                matching items across every list
+    Dictation.kt             cutting a dictated sentence into the items it names
   data/
     TodoRepository.kt        interface the UI talks to
     MarkdownTodoRepository.kt  keeps the tree and the files in step; no Android APIs
@@ -153,12 +154,16 @@ app/src/main/java/dev/shafqat/mytodo/
                              DataStoreListPrefsStore (per-list colour, hide-completed)
   widget/
     ListWidget.kt            5a: one list, ticked off from the home screen
-    ListWidgetConfigActivity.kt  picks which list a new list widget shows
     LauncherWidget.kt        5b: every list, tap to open one
+    VoiceWidget.kt           5c: a 1x1 tile that is only a button — press, speak, it is on the list
+    VoiceCaptureActivity.kt  the transparent overlay: dictation sheet, then a confirmation + undo
+    VoiceCapture.kt          filing a dictated sentence onto a list, and taking it back off
+    WidgetConfigActivity.kt  the shared "which list?" picker and its contract with the launcher
+    ListWidgetConfigActivity.kt / VoiceWidgetConfigActivity.kt  its two subclasses
     ToggleItemAction.kt      a tick from a widget, resolved back to an item and written through
     WidgetRows.kt            the pure projection of a list into widget rows
     WidgetHost.kt            getting the repository, and the intents back into the app
-    WidgetColors.kt          the app's palette as Glance colour providers
+    WidgetColors.kt          the app's palette as Glance colour providers, and the list-tint rule
   ui/
     navigation/MyTodoApp.kt  NavHost: lists → list/{listId} → search → settings
     lists/                   Keep-style grid of list cards
@@ -183,6 +188,8 @@ app/src/test/java/dev/shafqat/mytodo/
   TodoItemListUiTest.kt      Compose: dragging rows (Robolectric)
   TodoItemEditingUiTest.kt   Compose: inline entry, Enter/Tab, swipe-to-delete
   WidgetRowsTest.kt          widget rows, key round-trips and deep-link intents
+  DictationTest.kt           where a dictated sentence is and is not cut into several items
+  VoiceCaptureTest.kt        a transcript reaching the file, and undo taking it back off
   NavigationTransitionUiTest.kt  Compose: taps during screen transitions
 ```
 
@@ -311,8 +318,54 @@ app/src/test/java/dev/shafqat/mytodo/
 - **Updates are pushed from `MyTodoApplication`**, which watches `repository.lists` and redraws both
   widgets on a 1s debounce — `lists` changes on every keystroke while an item is being typed.
   The widget also calls `refresh()` before drawing, which is what catches a file edited elsewhere.
-- **`ListWidgetConfigActivity` sets `RESULT_CANCELED` first.** The launcher starts it before the
-  widget exists and treats a cancelled result as "do not place it".
+- **`WidgetConfigActivity` sets `RESULT_CANCELED` first.** The launcher starts it before the
+  widget exists and treats a cancelled result as "do not place it". Both per-list widgets share the
+  base class rather than each restating that contract; a subclass supplies only the widget to
+  redraw and the title to ask under.
+### The voice tile
+
+- **It is a button, not a view.** `VoiceWidget` draws a mic on the list's tint and nothing else, so
+  it is never out of date, and the press goes straight to `VoiceCaptureActivity` — no widget
+  callback, no `RemoteViews` round trip between the finger and the microphone. The whole tile is the
+  target: a widget cannot use long-press, which the launcher keeps for itself.
+- **Dictation is the system's, via `ACTION_RECOGNIZE_SPEECH`.** That keeps `RECORD_AUDIO` out of the
+  manifest entirely — the recogniser app holds the permission — and gives the user the sheet they
+  already know. The cost is that a device with no app providing that *activity* has no dictation at
+  all, which is why the launch is a `try`/`catch` on `ActivityNotFoundException` rather than a
+  `resolveActivity` check: package visibility hides most recognisers from the check, so actually
+  launching it is the only honest test. The `<queries>` entry is there for the same reason.
+- **The capture activity is transparent, animation-free, and in its own task.** `taskAffinity=""`
+  plus `excludeFromRecents` keeps it out of `MainActivity`'s task — otherwise pressing the tile
+  would haul the whole app forward behind the dictation sheet — and the null window animation is
+  what makes the sheet look like it opened straight off the home screen. It must **not** be
+  `noHistory`: handing off to the recogniser backgrounds it, and `noHistory` would destroy it before
+  the transcript came back.
+- **The list's name rides in the intent.** The prompt says "Add to Groceries" without anyone reading
+  a file first; storage is only touched once there is a transcript to file. `savedInstanceState`
+  guards the launch, or a rotation would stack a second sheet.
+- **One sentence can name several items.** `splitDictation` cuts on "and then", "then", "next",
+  "and next" and "after that" — never on a bare "and", which joins one item ("milk and bread") far
+  more often than it starts another. A "next" followed by a time word is part of the item, not a
+  break ("book the car in next week"). The rules err towards leaving a sentence alone: a split
+  nobody asked for is more annoying than a missed one.
+- **A dictated item goes on top, not on the end.** Something captured in passing is something you
+  have not dealt with yet, and a list you speak at is a list that grows — appending would file every
+  new item below everything already seen and settled. Within one sentence each item goes below the
+  last, so "milk and then bread" reads top to bottom in the order it was spoken, and a later capture
+  sits above an earlier one. `addItemAt` is the repository seam; it indexes into the whole tree, not
+  the filtered view, so hiding finished items cannot move where a capture lands.
+- **Inserting above existing rows re-keys collapse state.** Appending never had to, because it
+  cannot change any existing item's path; inserting at the top renumbers same-named siblings, and
+  collapse keys are built from exactly that numbering. `addItemAt` calls `rekeyCollapse` for the
+  same reason `moveItem` does.
+- **Undo deletes the ids the capture created**, not "the last N items", so anything added in between
+  survives. The adds are flushed immediately, like any other widget write.
+- Verified on the emulator as far as the microphone: the tile draws and tints correctly in both
+  themes, the press opens the dictation sheet over the home screen in its own task. The leg past
+  that needs real speech, so `VoiceCaptureTest` covers it against a temp directory instead.
+
+### Coverage
+
 - Widget *rendering* has no automated coverage. The row projection, the key round-trip and the
   intents are unit tested; the drawing is checked on the emulator, the same split the app itself
   uses (see "Checking behaviour on a device").

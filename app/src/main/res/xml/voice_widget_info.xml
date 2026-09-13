@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The voice tile. One cell by default, because it is a button rather than a view of anything, and
+  the fastest button is the one your thumb already knows the position of.
+
+  No updatePeriodMillis: there is nothing on it that changes on its own. A rename or a recolour is
+  pushed from the app, and the tile re-reads storage when it is drawn.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:targetApi="31"
+    android:configure="dev.shafqat.mytodo.widget.VoiceWidgetConfigActivity"
+    android:description="@string/voice_widget_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minWidth="40dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
+    android:previewImage="@mipmap/ic_launcher"
+    android:previewLayout="@layout/voice_widget_preview"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="1"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

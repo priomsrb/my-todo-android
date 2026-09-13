@@ -133,6 +133,20 @@ Worth knowing before Phase 6:
 - **The widget flushes its write immediately** instead of using the autosave debounce: nothing keeps
   the process alive once the tap is handled.
 
+## Phase 5c — The voice tile
+
+- [x] A 1x1 widget that is only a button: press it, speak, and what you said is on a list. The list
+      is chosen when the tile is placed, so capture itself costs one press and no decisions
+- [x] One sentence can name several items — split on "and then" / "then" / "next" / "after that",
+      never on a bare "and"
+- [x] Added straight away with an undo on the confirmation, rather than a confirm step every time
+- [x] Captures land on top of the list, newest batch first, each batch in the order it was spoken
+- [ ] Not verified end to end: the emulator has no microphone, so the transcript → confirmation →
+      undo leg has only unit coverage. Check it on a real phone
+- [ ] Consider a fallback for devices with no `ACTION_RECOGNIZE_SPEECH` activity — `SpeechRecognizer`
+      against the on-device `RecognitionService` works there, but needs `RECORD_AUDIO` and an
+      overlay of our own. Only worth it if it actually bites
+
 ## Phase 6 - Polish
 
 - [x] Reordering starts immediately: the drag handle no longer waits out a long press, so a row
@@ -163,7 +177,17 @@ Worth knowing before Phase 6:
   file; renaming a list renames its file.
 - **Completed items stay in the file as `- [X]`** indefinitely. Archiving them out is a possible
   future feature, not a current one.
-- **Two widgets, not one** (see Phase 5): one edits a single list, one picks a list to open.
+- **Three widgets, not one** (see Phase 5): one edits a single list, one picks a list to open, one
+  takes a spoken item onto a list.
+- **The voice tile hands dictation to the system recogniser** rather than running `SpeechRecognizer`
+  itself. That keeps `RECORD_AUDIO` out of the app and gives the user the sheet they already know;
+  the trade is that a device without an app providing that activity gets a clear message instead.
+- **A dictated item is added immediately, with an undo**, rather than shown in a confirm step. The
+  whole point of the tile is that capture costs one press; a confirmation every time would spend
+  what it saves.
+- **Voice captures go to the top of the list**, unlike every other add, which appends. What you say
+  in passing is the thing you have not dealt with yet; burying it under everything already settled
+  is how it gets missed.
 - **Widgets share the app's one repository** rather than reading the files themselves. Two readers
   of the same files would eventually disagree, and ticking something off in the widget has to be
   the same edit as ticking it off in the app.

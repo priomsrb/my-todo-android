@@ -72,4 +72,14 @@
     <string name="widget_preview_item_one">Bread</string>
     <string name="widget_preview_item_two">Oat milk</string>
     <string name="widget_preview_item_done">Bin bags</string>
+
+    <!-- The voice tile -->
+    <string name="voice_widget_label">Add by voice</string>
+    <string name="voice_widget_description">Press, speak, and it is on the list.</string>
+    <string name="voice_widget_pick_list">Add to which list?</string>
+    <string name="voice_widget_action">Add to %1$s by voice</string>
+    <string name="voice_prompt">Add to %1$s</string>
+    <string name="voice_no_recognizer">No speech recognition on this device.</string>
+    <string name="voice_added_one">Added “%1$s”</string>
+    <string name="voice_added_many">Added %1$d items to %2$s</string>
 </resources>

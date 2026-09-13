@@ -57,8 +57,27 @@ internal fun openListIntent(context: Context, listId: String?): Intent =
         if (listId != null) putExtra(MainActivity.EXTRA_LIST_ID, listId)
     }
 
-/** Redraws both widgets. Called whenever the lists change, from either side. */
+/**
+ * An intent that opens the voice capture overlay for [listId], with [listName] along for the ride.
+ *
+ * The name is passed rather than looked up because the overlay's whole job is to get the
+ * microphone open fast: waiting for storage before it can label the prompt would put a pause
+ * exactly where the user is already talking. The list id is in the data URI for the same reason
+ * [openListIntent] puts it there — two voice tiles for different lists must not collapse into one
+ * `PendingIntent`.
+ */
+internal fun voiceCaptureIntent(context: Context, listId: String, listName: String): Intent =
+    Intent(context, VoiceCaptureActivity::class.java).apply {
+        action = Intent.ACTION_VIEW
+        data = ("mytodo://speak/" + Uri.encode(listId)).toUri()
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        putExtra(VoiceCaptureActivity.EXTRA_LIST_ID, listId)
+        putExtra(VoiceCaptureActivity.EXTRA_LIST_NAME, listName)
+    }
+
+/** Redraws every widget. Called whenever the lists change, from either side. */
 internal suspend fun Context.updateTodoWidgets() {
     ListWidget().updateAll(this)
     LauncherWidget().updateAll(this)
+    VoiceWidget().updateAll(this)
 }

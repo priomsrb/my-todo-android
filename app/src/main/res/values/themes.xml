@@ -4,4 +4,16 @@
     <style name="Theme.MyTodo" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
     </style>
+
+    <!--
+      The voice capture overlay: a window that is only ever a confirmation line over whatever was
+      already on screen. No background and no window animation, so the dictation sheet appears to
+      open straight off the home screen rather than after a screen has slid in behind it.
+    -->
+    <style name="Theme.MyTodo.Transparent" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

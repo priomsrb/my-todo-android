@@ -31,14 +31,10 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.color.ColorProvider
-import androidx.glance.unit.ColorProvider as GlanceColorProvider
 import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.doneCount
 import dev.shafqat.mytodo.model.totalCount
-import dev.shafqat.mytodo.ui.theme.NoteColors
-import dev.shafqat.mytodo.ui.theme.NoteColorsDark
 
 /**
  * Every list, in miniature: the app's home grid as a home-screen shortcut board.
@@ -144,15 +140,6 @@ private fun LauncherWidgetRow(list: TodoList, position: Int) {
             ),
         )
     }
-}
-
-/**
- * A list's dot colour: the one it was given, or the tint of its position — the same fallback the
- * app's grid uses, so a list looks the same in both places.
- */
-private fun listTint(list: TodoList, position: Int): GlanceColorProvider {
-    val index = (list.prefs.colorIndex ?: position).mod(NoteColors.size)
-    return ColorProvider(day = NoteColors[index], night = NoteColorsDark[index])
 }
 
 /** Receives the system's update broadcasts for [LauncherWidget]. */

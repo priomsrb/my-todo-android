@@ -32,6 +32,13 @@ interface TodoRepository {
     suspend fun addItem(listId: String, text: String, parentId: String? = null): TodoItem
 
     /**
+     * Adds [text] as a top-level row at [index] among the tree's rows, pushing everything from
+     * there down. Index 0 puts it at the very top; the index is into the whole tree, not the
+     * filtered view, so hiding finished items cannot move where it lands.
+     */
+    suspend fun addItemAt(listId: String, text: String, index: Int): TodoItem
+
+    /**
      * Adds [text] on the row straight after [afterItemId], at the same depth — what pressing Enter
      * while editing does. An item with children showing gets the new item as its first child,
      * which is where the row after it actually is.

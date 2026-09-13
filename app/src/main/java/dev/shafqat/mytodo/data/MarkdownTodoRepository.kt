@@ -226,6 +226,15 @@ class MarkdownTodoRepository(
         return item
     }
 
+    override suspend fun addItemAt(listId: String, text: String, index: Int): TodoItem {
+        val item = TodoItem(text = text)
+        mutate(listId) { items -> items.insertSubtree(item, index, targetDepth = 0) }
+        // Unlike appending, inserting above existing rows renumbers same-named siblings — and
+        // collapse keys are paths built from exactly that numbering.
+        rekeyCollapse(listId)
+        return item
+    }
+
     override suspend fun addItemAfter(listId: String, afterItemId: String, text: String): TodoItem {
         val item = TodoItem(text = text)
         mutate(listId) { items ->

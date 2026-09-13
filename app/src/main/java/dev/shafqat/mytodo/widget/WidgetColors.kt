@@ -15,8 +15,13 @@ import androidx.glance.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.appwidget.cornerRadius
+import androidx.glance.color.ColorProvider
+import androidx.glance.unit.ColorProvider as GlanceColorProvider
+import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.ui.theme.KeepDarkColors
 import dev.shafqat.mytodo.ui.theme.KeepLightColors
+import dev.shafqat.mytodo.ui.theme.NoteColors
+import dev.shafqat.mytodo.ui.theme.NoteColorsDark
 
 /**
  * The widgets' palette, built from the app's own colour schemes.
@@ -38,6 +43,15 @@ internal val WidgetCaptionSize = 12.sp
 
 /** Indent per nesting level. Tighter than the app's, because a widget has less room to spend. */
 internal val WidgetIndentPerLevel = 12.dp
+
+/**
+ * A list's colour: the one it was given, or the tint of its position — the same fallback the app's
+ * grid uses, so a list looks the same wherever it is drawn.
+ */
+internal fun listTint(list: TodoList, position: Int): GlanceColorProvider {
+    val index = (list.prefs.colorIndex ?: position).mod(NoteColors.size)
+    return ColorProvider(day = NoteColors[index], night = NoteColorsDark[index])
+}
 
 /** What a widget shows instead of a list: nothing configured, nothing to show, nothing readable. */
 @Composable

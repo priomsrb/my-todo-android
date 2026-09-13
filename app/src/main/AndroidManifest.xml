@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Package visibility for the dictation sheet the voice widget hands off to. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MyTodoApplication"
         android:allowBackup="true"
@@ -38,6 +45,30 @@
             </intent-filter>
         </activity>
 
+        <!-- Asks which list a freshly dropped voice tile should add to. Not exported, for the
+             same reason as the list widget's. -->
+        <activity
+            android:name=".widget.VoiceWidgetConfigActivity"
+            android:exported="false"
+            android:label="@string/voice_widget_pick_list"
+            android:theme="@style/Theme.MyTodo">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!-- The voice tile's capture overlay. Its own task affinity and excluded from recents: it
+             is a transient window over the home screen, not a screen of the app, and putting it in
+             MainActivity's task would drag the whole app forward behind it. Deliberately not
+             noHistory — handing off to the dictation sheet backgrounds this activity, and
+             noHistory would destroy it before the transcript could come back. -->
+        <activity
+            android:name=".widget.VoiceCaptureActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@style/Theme.MyTodo.Transparent" />
+
         <receiver
             android:name=".widget.ListWidgetReceiver"
             android:exported="true"
@@ -60,6 +91,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/launcher_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.VoiceWidgetReceiver"
+            android:exported="true"
+            android:label="@string/voice_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/voice_widget_info" />
         </receiver>
     </application>
 

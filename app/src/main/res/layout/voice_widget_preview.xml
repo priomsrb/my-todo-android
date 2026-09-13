@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the widget picker shows for the voice tile. Static by necessity: a preview is drawn before
+  any widget exists, so there is no list to read. Kept in step with VoiceWidget by hand.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_preview_background"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <ImageView
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:contentDescription="@string/voice_widget_label"
+        android:src="@drawable/ic_mic"
+        android:tint="@color/widget_preview_text" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingTop="4dp"
+        android:text="@string/widget_preview_list_name"
+        android:textColor="@color/widget_preview_text_secondary"
+        android:textSize="12sp" />
+</LinearLayout>
