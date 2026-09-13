@@ -74,6 +74,7 @@ fun TodoListScreen(
     val focusItemId by viewModel.focusItemId.collectAsStateWithLifecycle()
     val pendingUndo by viewModel.pendingUndo.collectAsStateWithLifecycle()
     val renamedListId by viewModel.renamedListId.collectAsStateWithLifecycle()
+    val swipeToDeleteEnabled by viewModel.swipeToDeleteEnabled.collectAsStateWithLifecycle()
 
     var showColorPicker by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -192,6 +193,7 @@ fun TodoListScreen(
                     // have the same ones. Hiding finished items therefore parks reordering until
                     // the whole list is on screen again.
                     dragEnabled = !prefs.hideCompleted,
+                    swipeToDeleteEnabled = swipeToDeleteEnabled,
                     focusItemId = focusItemId,
                     onToggleDone = viewModel::setDone,
                     onToggleCollapsed = viewModel::setCollapsed,

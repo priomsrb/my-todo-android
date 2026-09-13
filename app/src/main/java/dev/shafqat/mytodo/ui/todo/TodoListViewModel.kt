@@ -4,11 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.shafqat.mytodo.data.TodoRepository
+import dev.shafqat.mytodo.data.settings.SettingsRepository
 import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.findItem
 import dev.shafqat.mytodo.model.visibleRowOf
+import dev.shafqat.mytodo.todoApp
 import dev.shafqat.mytodo.todoRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -38,6 +40,7 @@ class TodoListViewModel(
 ) : AndroidViewModel(application) {
 
     private val repository: TodoRepository = application.todoRepository
+    private val settings: SettingsRepository = application.todoApp.settings
 
     val list: StateFlow<TodoList?> = repository.lists
         .map { lists -> lists.firstOrNull { it.id == listId } }
@@ -46,6 +49,10 @@ class TodoListViewModel(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = repository.lists.value.firstOrNull { it.id == listId },
         )
+
+    /** Whether a swipe on a row deletes it — a setting, off until the user turns it on. */
+    val swipeToDeleteEnabled: StateFlow<Boolean> = settings.swipeToDeleteEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /** The item that should open for typing, set whenever one is created. */
     private val _focusItemId = MutableStateFlow<String?>(null)

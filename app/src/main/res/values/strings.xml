@@ -8,6 +8,8 @@
     <string name="back">Back</string>
     <string name="untitled_list">Untitled list</string>
     <string name="todo_folder">Todo folder</string>
+    <string name="swipe_to_delete">Swipe to delete</string>
+    <string name="swipe_to_delete_summary">Swipe a row either way to delete it.</string>
     <string name="file_format">File format</string>
     <string name="file_format_summary">Markdown · one file per list · tab-indented · - [ ] / - [X]</string>
     <string name="version">Version</string>

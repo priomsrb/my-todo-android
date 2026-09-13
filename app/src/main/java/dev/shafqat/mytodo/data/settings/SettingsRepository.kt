@@ -3,6 +3,7 @@ package dev.shafqat.mytodo.data.settings
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -12,7 +13,7 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
-/** Persisted user settings. Currently just where the todo files live. */
+/** Persisted user settings: where the todo files live, and how rows behave. */
 class SettingsRepository(private val context: Context) {
 
     /**
@@ -32,7 +33,24 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Whether swiping a row deletes it. Off unless the user turns it on.
+     *
+     * Off by default because the gesture is easy to trigger by accident — the rows are the same
+     * place a finger lands to scroll — and every row already carries a delete button. Deduplicated
+     * for the same reason as [todoFolderUri]: this flow reaches the list screen, and an unrelated
+     * write to this DataStore should not look like a change here.
+     */
+    val swipeToDeleteEnabled: Flow<Boolean> = context.dataStore.data
+        .map { it[SWIPE_TO_DELETE] ?: false }
+        .distinctUntilChanged()
+
+    suspend fun setSwipeToDeleteEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences -> preferences[SWIPE_TO_DELETE] = enabled }
+    }
+
     private companion object {
         val TODO_FOLDER_URI = stringPreferencesKey("todo_folder_uri")
+        val SWIPE_TO_DELETE = booleanPreferencesKey("swipe_to_delete")
     }
 }

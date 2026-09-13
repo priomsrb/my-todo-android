@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,12 +18,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -41,6 +44,7 @@ fun SettingsScreen(
 ) {
     val storageState by viewModel.storageState.collectAsStateWithLifecycle()
     val folderUri by viewModel.folderUri.collectAsStateWithLifecycle()
+    val swipeToDeleteEnabled by viewModel.swipeToDeleteEnabled.collectAsStateWithLifecycle()
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -96,6 +100,13 @@ fun SettingsScreen(
                 ) { Text(stringResource(R.string.use_default_folder)) }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            SettingSwitchRow(
+                title = stringResource(R.string.swipe_to_delete),
+                subtitle = stringResource(R.string.swipe_to_delete_summary),
+                checked = swipeToDeleteEnabled,
+                onCheckedChange = viewModel::setSwipeToDeleteEnabled,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             SettingRow(
                 title = stringResource(R.string.file_format),
                 subtitle = stringResource(R.string.file_format_summary),
@@ -140,10 +151,47 @@ private fun StorageWarning(message: String, actionLabel: String, onAction: () ->
     }
 }
 
+/**
+ * A setting that is simply on or off.
+ *
+ * The whole row toggles, not just the switch: the switch is a small target, and the row already
+ * says what it controls.
+ */
 @Composable
-private fun SettingRow(title: String, subtitle: String, onClick: (() -> Unit)? = null) {
-    Column(
+private fun SettingSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
         modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SettingRow(
+            title = title,
+            subtitle = subtitle,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.padding(end = 20.dp),
+        )
+    }
+}
+
+@Composable
+private fun SettingRow(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    Column(
+        modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 20.dp, vertical = 16.dp),

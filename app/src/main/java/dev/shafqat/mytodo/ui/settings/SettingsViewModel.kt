@@ -21,6 +21,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val folderUri: StateFlow<String?> = app.settings.todoFolderUri
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    val swipeToDeleteEnabled: StateFlow<Boolean> = app.settings.swipeToDeleteEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setSwipeToDeleteEnabled(enabled: Boolean) {
+        viewModelScope.launch { app.settings.setSwipeToDeleteEnabled(enabled) }
+    }
+
     /**
      * Records the folder the user picked, holding on to the permission so it survives a reboot.
      * The repository follows the setting, so nothing else needs to be told about the change.

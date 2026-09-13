@@ -180,6 +180,9 @@ Worth knowing before Phase 6:
 - [x] Fixed while wiring that up: a finger in the list's *top padding* — above the first row but
       inside the viewport — hit no row and fell through to "past the end of the list", so nudging
       the top row up by about half a row flung it to the bottom
+- [x] Swipe-to-delete is now a setting, off by default. The rows are where a finger lands to
+      scroll, so the gesture fired by accident; the row's delete button is unaffected, and the
+      undo snackbar still backs both
 
 ## Phase 7 — Robustness and extras
 
@@ -223,3 +226,6 @@ Worth knowing before Phase 6:
   each finished item down by hand would.
 - **A list's colour and view options live in `list_prefs`, keyed by file name**, and follow a
   rename and vanish with a delete, the same way collapse state does.
+- **Swipe-to-delete is opt-in**, a boolean in the settings DataStore that ships off. It is a
+  destructive gesture on the same surface a finger uses to scroll, and deleting is already a
+  one-tap button on every row — so the default is the safe one, not the convenient one.

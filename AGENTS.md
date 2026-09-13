@@ -5,8 +5,8 @@ A Google Keep-inspired Android TODO app whose data lives in plain markdown files
 Current state: **Phase 6 complete** — lists are real markdown files, one per list, in a folder the
 user picks (app-private storage until they do); nested items expand and collapse, rows are lifted
 by the handle and dragged to reorder and re-nest, and items are typed inline (Enter for the next
-one, Tab to nest), swiped away with an undo, coloured per list, searched across lists, and hidden
-once finished. Three
+one, Tab to nest), deleted with an undo from the row's button (or by swiping, once that is switched
+on in settings), coloured per list, searched across lists, and hidden once finished. Three
 Glance home-screen widgets show a list and tick it off (with a mic and a + in the corner for
 adding one by voice or by typing), list every list and open one, or take a spoken item straight
 onto a list. See [TODO.md](TODO.md) for the roadmap.
@@ -151,7 +151,7 @@ app/src/main/java/dev/shafqat/mytodo/
       TodoFileStore.kt       the only seam that knows where files physically live
       LocalDirectoryStore.kt app-private default; also stands in for storage in tests
       SafDirectoryStore.kt   a folder the user picked, via a persisted tree URI
-    settings/                DataStore: SettingsRepository (folder URI),
+    settings/                DataStore: SettingsRepository (folder URI, swipe-to-delete),
                              DataStoreCollapseStore (collapse state),
                              DataStoreListPrefsStore (per-list colour, hide-completed)
   widget/
@@ -172,7 +172,7 @@ app/src/main/java/dev/shafqat/mytodo/
     todo/                    one list: flattened rows, checkboxes, inline editing, swipe-to-delete,
                              TodoDragState (drag, depth, auto-scroll)
     search/                  search across every list
-    settings/                folder picker, storage state, about rows
+    settings/                folder picker, storage state, swipe-to-delete toggle, about rows
     components/              shared composables (TextInputDialog, ColorPickerDialog, EmptyState)
     theme/                   Keep-ish palette, typography, note tints
 app/src/test/java/dev/shafqat/mytodo/
@@ -297,6 +297,11 @@ app/src/test/java/dev/shafqat/mytodo/
 - **Swipe-to-delete commits from `confirmValueChange`,** because the row is gone from the list as
   soon as it is deleted and there is no settled state left to observe. The box asks more than once
   on its way to dismissed, so the delete is guarded by a flag or a single swipe deletes twice.
+- **Swipe-to-delete is off unless the user turns it on** in settings (`swipeToDeleteEnabled`,
+  a boolean in the settings DataStore, default false). The rows are where a finger lands to scroll,
+  so the gesture is easy to fire by accident, and every row already carries a delete button — so the
+  default costs nothing. `TodoItemList`'s parameter defaults to `false` too, matching what ships;
+  the swipe tests pass it explicitly.
 - **Undo is `insertSubtree` at the recorded index and depth.** `TodoListViewModel` captures where an
   item sat *before* deleting it; anything less puts the item back at the end of the list, which is
   not undoing anything.

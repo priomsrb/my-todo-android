@@ -51,7 +51,8 @@ import org.robolectric.annotation.Config
  *
  * The interesting part of this feature is the wiring — which row has the editor, what a key does to
  * the tree, when a still-empty item is thrown away — and none of that is visible to the pure model
- * tests. The harness stands in for the ViewModel, applying the same tree helpers it does.
+ * tests. The harness stands in for the ViewModel, applying the same tree helpers it does — and it
+ * turns swipe-to-delete on, since the setting behind it ships off.
  */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -80,7 +81,10 @@ class TodoItemEditingUiTest {
     }
 
     @Composable
-    private fun Harness(start: List<TodoItem> = initialItems) {
+    private fun Harness(
+        start: List<TodoItem> = initialItems,
+        swipeToDeleteEnabled: Boolean = true,
+    ) {
         var items by remember { mutableStateOf(start) }
         var focusItemId by remember { mutableStateOf<String?>(null) }
         renderedRows = items.flattenVisible().map { it.item.text to it.depth }
@@ -89,6 +93,7 @@ class TodoItemEditingUiTest {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
             TodoItemList(
                 items = items,
+                swipeToDeleteEnabled = swipeToDeleteEnabled,
                 focusItemId = focusItemId,
                 onToggleDone = { id, done -> items = items.updateItem(id) { it.copy(done = done) } },
                 onToggleCollapsed = { id, collapsed ->
@@ -280,6 +285,17 @@ class TodoItemEditingUiTest {
 
         assertEquals(listOf("bravo"), deleted)
         assertEquals(listOf("Alpha", "Charlie"), renderedOrder)
+    }
+
+    @Test
+    fun `swiping does nothing while the setting is off`() {
+        composeRule.setContent { Harness(swipeToDeleteEnabled = false) }
+
+        composeRule.onNodeWithText("Bravo").performTouchInput { swipeRight() }
+        composeRule.waitForIdle()
+
+        assertEquals(emptyList<String>(), deleted)
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), renderedOrder)
     }
 
     @Test

@@ -63,6 +63,10 @@ data class ItemEditActions(
 /**
  * The rows of one list, with drag-to-reorder, inline editing and swipe-to-delete wired up.
  *
+ * Swipe-to-delete is off unless [swipeToDeleteEnabled] says otherwise, matching the setting that
+ * turns it on: the gesture is easy to trigger while scrolling, and the row's delete button is
+ * always there.
+ *
  * Separate from [TodoListScreen] so it can be driven straight from a UI test with plain state and
  * callbacks, no ViewModel involved.
  *
@@ -79,6 +83,7 @@ fun TodoItemList(
     onMove: (itemId: String, targetIndex: Int, targetDepth: Int) -> Unit,
     modifier: Modifier = Modifier,
     dragEnabled: Boolean = true,
+    swipeToDeleteEnabled: Boolean = false,
     focusItemId: String? = null,
     editActions: ItemEditActions = ItemEditActions(),
 ) {
@@ -155,7 +160,7 @@ fun TodoItemList(
                     else -> Modifier
                 },
                 // Swiping a row that is mid-edit would be an accident, not an intention.
-                enabled = !isEditing,
+                enabled = swipeToDeleteEnabled && !isEditing,
                 onDelete = { onDelete(row.item.id) },
             ) {
                 TodoRow(
