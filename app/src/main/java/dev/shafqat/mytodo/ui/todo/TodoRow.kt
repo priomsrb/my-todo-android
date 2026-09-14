@@ -4,6 +4,8 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +42,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
@@ -48,9 +51,13 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -66,6 +73,13 @@ val IndentPerLevel = 24.dp
 
 /** Width reserved for the chevron, so items without children still line up with their siblings. */
 private val ChevronSize = 28.dp
+
+/**
+ * Padding above and below an item's text — and the same on its editor, so the swap between the
+ * two moves nothing. It is also the gap between the top of the text slot and the text itself,
+ * which matters when turning a touch into a caret position.
+ */
+private val TextVerticalPadding = 12.dp
 
 /** Test tag on the text field a row shows while it is being edited. */
 const val ItemEditorTag = "item-editor"
@@ -99,8 +113,9 @@ data class RowEditCallbacks(
  *
  * The handle is only drawn when reordering is actually available.
  *
- * Tapping the text turns it into a field in place. That editor is where fast entry lives: Enter
- * starts the next item, Tab and Shift-Tab re-nest this one.
+ * Tapping the text turns it into a field in place, with the caret on the character that was
+ * tapped. That editor is where fast entry lives: Enter starts the next item, Tab and Shift-Tab
+ * re-nest this one.
  */
 @Composable
 fun TodoRow(
@@ -112,7 +127,12 @@ fun TodoRow(
     modifier: Modifier = Modifier,
     isDragging: Boolean = false,
     isEditing: Boolean = false,
-    onStartEdit: () -> Unit = {},
+    /**
+     * Reports the character offset the text was tapped at, or null when nothing was tapped.
+     */
+    onStartEdit: (caret: Int?) -> Unit = {},
+    /** Where to put the caret when the editor opens; null means the end of the text. */
+    initialCaret: Int? = null,
     editCallbacks: RowEditCallbacks = RowEditCallbacks(),
     showDragHandle: Boolean = true,
     dragHandleModifier: Modifier = Modifier,
@@ -186,9 +206,18 @@ fun TodoRow(
             ItemEditor(
                 item = item,
                 callbacks = editCallbacks,
+                initialCaret = initialCaret,
                 modifier = Modifier.weight(1f),
             )
         } else {
+            // How the text is laid out, and where the finger last went down on it, are what turn a
+            // tap into a caret position. Both are forgotten when the edit begins and this branch
+            // leaves the composition, so a later edit started some other way cannot inherit a
+            // stale touch.
+            var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+            var touch by remember { mutableStateOf<Offset?>(null) }
+            val textTop = with(LocalDensity.current) { TextVerticalPadding.toPx() }
+
             Text(
                 text = item.text.ifBlank { stringResource(R.string.empty_item) },
                 style = MaterialTheme.typography.bodyLarge,
@@ -198,10 +227,22 @@ fun TodoRow(
                     else -> MaterialTheme.colorScheme.onSurface
                 },
                 textDecoration = if (item.done) TextDecoration.LineThrough else null,
+                onTextLayout = { layout = it },
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onStartEdit)
-                    .padding(vertical = 12.dp),
+                    // Noting the touch and handling the tap are kept apart on purpose: this reads
+                    // the press on the initial pass and consumes nothing, so the clickable below
+                    // still owns the gesture — and with it the ripple and the accessibility click.
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            touch = awaitFirstDown(
+                                requireUnconsumed = false,
+                                pass = PointerEventPass.Initial,
+                            ).position
+                        }
+                    }
+                    .clickable { onStartEdit(caretOffsetAt(layout, touch, textTop)) }
+                    .padding(vertical = TextVerticalPadding),
             )
         }
 
@@ -226,6 +267,20 @@ fun TodoRow(
 }
 
 /**
+ * The character of the row's text that a touch landed on, or null if that cannot be worked out —
+ * a click with no touch behind it, from the keyboard or a screen reader.
+ *
+ * [touch] is in the coordinates of the whole text slot, whose top edge sits [textTop] pixels above
+ * the text itself. Positions past the end of a line, which is most of the slot for a short item,
+ * resolve to the end of that line, so tapping the empty space beside an item puts the caret after
+ * its last character.
+ */
+private fun caretOffsetAt(layout: TextLayoutResult?, touch: Offset?, textTop: Float): Int? {
+    if (layout == null || touch == null) return null
+    return layout.getOffsetForPosition(touch - Offset(0f, textTop))
+}
+
+/**
  * The text field a row shows while it is being edited.
  *
  * Its own state is the source of truth for what is on screen; every keystroke is also reported
@@ -240,11 +295,16 @@ fun TodoRow(
 private fun ItemEditor(
     item: TodoItem,
     callbacks: RowEditCallbacks,
+    initialCaret: Int? = null,
     modifier: Modifier = Modifier,
 ) {
-    // The caret starts at the end of the existing text, as it does when editing a note title.
+    // The caret starts on the character that was tapped, so a word in the middle of a long item can
+    // be fixed without walking back to it. Edits that began without a tap — a new item from Enter,
+    // a widget opening the app on one — have no position to honour and start at the end. A blank
+    // item draws a placeholder, which is longer than the empty text the caret has to sit in.
     var value by remember {
-        mutableStateOf(TextFieldValue(item.text, TextRange(item.text.length)))
+        val caret = initialCaret?.coerceIn(0, item.text.length) ?: item.text.length
+        mutableStateOf(TextFieldValue(item.text, TextRange(caret)))
     }
     val focusRequester = remember { FocusRequester() }
     val current by rememberUpdatedState(callbacks)
@@ -278,7 +338,7 @@ private fun ItemEditor(
         keyboardActions = KeyboardActions(onNext = { current.onSplit() }),
         modifier = modifier
             .testTag(ItemEditorTag)
-            .padding(vertical = 12.dp)
+            .padding(vertical = TextVerticalPadding)
             .focusRequester(focusRequester)
             .onFocusChanged { state ->
                 if (state.isFocused) hasBeenFocused = true else if (hasBeenFocused) current.onDone()

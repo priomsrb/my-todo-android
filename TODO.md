@@ -229,3 +229,8 @@ Worth knowing before Phase 6:
 - **Swipe-to-delete is opt-in**, a boolean in the settings DataStore that ships off. It is a
   destructive gesture on the same surface a finger uses to scroll, and deleting is already a
   one-tap button on every row — so the default is the safe one, not the convenient one.
+- **Tapping an item's text puts the caret where the finger landed**, not at the end. The end is
+  right for a row that opened without a tap — a new item from Enter, or one a widget opened — and
+  those still get it; a tap has a position and it is what the user meant. Tapping the empty space
+  beside a short item still lands at the end of the line, so starting an edit to carry on typing
+  costs nothing.

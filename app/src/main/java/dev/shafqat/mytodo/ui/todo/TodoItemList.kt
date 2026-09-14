@@ -70,9 +70,9 @@ data class ItemEditActions(
  * Separate from [TodoListScreen] so it can be driven straight from a UI test with plain state and
  * callbacks, no ViewModel involved.
  *
- * Which row is being edited is state of this list rather than of the screen: it has to survive a
- * row moving, and it follows [focusItemId] so that a freshly created item opens for typing without
- * the screen having to reach down into the list.
+ * Which row is being edited — and where its caret starts — is state of this list rather than of the
+ * screen: it has to survive a row moving, and it follows [focusItemId] so that a freshly created
+ * item opens for typing without the screen having to reach down into the list.
  */
 @Composable
 fun TodoItemList(
@@ -90,10 +90,18 @@ fun TodoItemList(
     val listState = rememberLazyListState()
     val dragState = rememberTodoDragState(listState)
     var editingItemId by remember { mutableStateOf<String?>(null) }
+    // Where the caret goes when the editor opens: the character that was tapped, or null for the
+    // end of the text, which is what a row opened any other way wants.
+    var editingCaret by remember { mutableStateOf<Int?>(null) }
     val actions by rememberUpdatedState(editActions)
 
     // A new item arrives already open for typing, which is the whole point of Enter.
-    LaunchedEffect(focusItemId) { if (focusItemId != null) editingItemId = focusItemId }
+    LaunchedEffect(focusItemId) {
+        if (focusItemId != null) {
+            editingItemId = focusItemId
+            editingCaret = null
+        }
+    }
 
     /** Ends an edit. Safe to call twice — a row can both lose focus and be dismissed by Enter. */
     fun stopEditing(itemId: String) {
@@ -168,7 +176,11 @@ fun TodoItemList(
                     depth = row.depth,
                     isDragging = isFloating,
                     isEditing = isEditing,
-                    onStartEdit = { editingItemId = row.item.id },
+                    onStartEdit = { caret ->
+                        editingItemId = row.item.id
+                        editingCaret = caret
+                    },
+                    initialCaret = editingCaret,
                     showDragHandle = dragEnabled,
                     editCallbacks = RowEditCallbacks(
                         onTextChange = { text -> actions.onTextChange(row.item.id, text) },

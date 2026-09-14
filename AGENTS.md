@@ -271,6 +271,16 @@ app/src/test/java/dev/shafqat/mytodo/
   `BasicTextField` in the same slot, so nothing moves as the edit starts. Which row is being edited
   is state of `TodoItemList`, not of the screen: it has to survive the row being re-nested, and a
   test can drive it without a ViewModel.
+- **The caret opens on the character that was tapped**, so a word in the middle of a long item can
+  be fixed without walking back to it. `TodoRow` keeps the `TextLayoutResult` of the text it is
+  showing and notes where the finger went down — on the *initial* pointer pass, consuming nothing,
+  so the `clickable` still owns the tap along with its ripple and its accessibility click — then
+  turns the two into an offset with `getOffsetForPosition`. That touch is in the coordinates of the
+  whole text slot, which starts `TextVerticalPadding` above the text itself, so the padding is
+  subtracted first; without that a tap on the second line of a wrapped item can read as the first.
+  Edits that began with no tap behind them — a new item from Enter, a widget opening the app on one
+  — pass a null offset and start at the end, as before. A blank row draws a placeholder longer than
+  its own empty text, so the offset is clamped to the text it will actually sit in.
 - **Keys are handled on the preview pass.** Tab would otherwise move focus and Enter would insert a
   newline; `onPreviewKeyEvent` claims Tab, Shift-Tab and Enter before the field sees them. The soft
   keyboard's Next action is wired to the same place, since IMEs do not deliver Enter as a key event.

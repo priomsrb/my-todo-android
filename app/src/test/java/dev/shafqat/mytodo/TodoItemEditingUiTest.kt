@@ -8,10 +8,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -151,6 +153,34 @@ class TodoItemEditingUiTest {
         startEditing("Bravo")
 
         editor().assertIsDisplayed()
+    }
+
+    @Test
+    fun `tapping an item's text puts the caret on the character that was tapped`() {
+        composeRule.setContent { Harness() }
+
+        // Hard against the left edge of the text, which is before its first character.
+        composeRule.onNodeWithText("Bravo").performTouchInput { click(Offset(1f, centerY)) }
+        composeRule.waitForIdle()
+
+        editor().performTextInput("X")
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "XBravo", "Charlie"), renderedOrder)
+    }
+
+    @Test
+    fun `tapping the empty space beside an item leaves the caret at the end`() {
+        composeRule.setContent { Harness() }
+
+        // A short item leaves most of its row blank; tapping there is how the rest of the app's
+        // tests start an edit, and it has to still mean "carry on typing at the end".
+        startEditing("Bravo")
+
+        editor().performTextInput("X")
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "BravoX", "Charlie"), renderedOrder)
     }
 
     @Test
