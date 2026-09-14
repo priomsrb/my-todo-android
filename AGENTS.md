@@ -271,6 +271,14 @@ app/src/test/java/dev/shafqat/mytodo/
   `BasicTextField` in the same slot, so nothing moves as the edit starts. Which row is being edited
   is state of `TodoItemList`, not of the screen: it has to survive the row being re-nested, and a
   test can drive it without a ViewModel.
+- **The editor lays out exactly like the text it replaces.** It wraps rather than being a
+  single-line field, and it takes `typography.bodyLarge` directly instead of merging onto
+  `LocalTextStyle`, which brought line metrics of its own. Both matter only for an item long enough
+  to wrap: as a single line that item became one strip scrolling sideways, and the row — along with
+  everything below it — jumped the moment it was tapped. Newlines are turned into spaces on the way
+  in, since a wrapping field can be handed one by a paste or by an IME's return key, and an item is
+  one line of markdown. Enter is still intercepted before the field sees it, so it splits the item
+  rather than breaking the line.
 - **The caret opens on the character that was tapped**, so a word in the middle of a long item can
   be fixed without walking back to it. `TodoRow` keeps the `TextLayoutResult` of the text it is
   showing and notes where the finger went down — on the *initial* pointer pass, consuming nothing,
@@ -442,6 +450,10 @@ app/src/test/java/dev/shafqat/mytodo/
 
 ### Coverage
 
+- *How text lays out* has no automated coverage: Robolectric does not wrap text at all — a
+  300-character item still measures as one line — so a test cannot tell a wrapping editor from a
+  single-line one. Row heights are compared on the emulator instead, from `uiautomator dump`
+  bounds, the same split the widgets use.
 - Widget *rendering* has no automated coverage. The row projection, the key round-trip and the
   intents are unit tested; the drawing is checked on the emulator, the same split the app itself
   uses (see "Checking behaviour on a device").

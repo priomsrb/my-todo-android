@@ -229,6 +229,10 @@ Worth knowing before Phase 6:
 - **Swipe-to-delete is opt-in**, a boolean in the settings DataStore that ships off. It is a
   destructive gesture on the same surface a finger uses to scroll, and deleting is already a
   one-tap button on every row — so the default is the safe one, not the convenient one.
+- **The editor wraps, because the text it replaces does.** A long item used to become a
+  single-line field scrolling sideways, so the row collapsed to one line and the list jumped under
+  the finger. Viewing and editing now lay out identically — verified on the emulator, where the two
+  screens differ only in the pixels of the caret itself.
 - **Tapping an item's text puts the caret where the finger landed**, not at the end. The end is
   right for a row that opened without a tap — a new item from Enter, or one a widget opened — and
   those still get it; a tap has a position and it is what the user meant. Tapping the empty space

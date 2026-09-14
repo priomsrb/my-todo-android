@@ -24,7 +24,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -326,14 +325,24 @@ private fun ItemEditor(
     BasicTextField(
         value = value,
         onValueChange = { newValue ->
-            value = newValue
-            current.onTextChange(newValue.text)
+            // An item is one line of markdown, so a newline that arrives anyway — pasted in, or
+            // typed on an IME that offers a return key now that the field wraps — becomes a space.
+            // Swapping rather than dropping keeps the length, and with it the caret, where the
+            // field thinks it is.
+            val flattened = newValue.withoutNewlines()
+            value = flattened
+            current.onTextChange(flattened.text)
         },
-        textStyle = LocalTextStyle.current.merge(
-            MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+        // The row's own style, not a merge onto whatever the surface provides: the two have to
+        // lay out identically, and a style the field inherits brings its own line metrics with it.
+        textStyle = MaterialTheme.typography.bodyLarge.copy(
+            color = MaterialTheme.colorScheme.onSurface,
         ),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        singleLine = true,
+        // The field wraps exactly as the text it replaces does, so opening a long item for editing
+        // leaves every line where it was. A single-line field would show that same item as one long
+        // strip that scrolls sideways, and the row — and everything below it — would jump.
+        singleLine = false,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
         keyboardActions = KeyboardActions(onNext = { current.onSplit() }),
         modifier = modifier
@@ -363,3 +372,7 @@ private fun ItemEditor(
             },
     )
 }
+
+/** The same value with any newline in its text turned into a space. */
+private fun TextFieldValue.withoutNewlines(): TextFieldValue =
+    if ('\n' in text) copy(text = text.replace('\n', ' ')) else this
