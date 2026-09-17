@@ -45,6 +45,22 @@ interface TodoRepository {
      */
     suspend fun addItemAfter(listId: String, afterItemId: String, text: String = ""): TodoItem
 
+    /**
+     * Adds whole subtrees as top-level rows, at the top of the list when [atTop] or after
+     * everything already there otherwise. Used by "Add from text", where one paste is many items.
+     */
+    suspend fun addItems(listId: String, items: List<TodoItem>, atTop: Boolean = false)
+
+    /**
+     * Undo for [addItems]: takes that batch back off the list.
+     *
+     * Matched by where it landed and what it said, never by id — a reload re-parses the files and
+     * hands every item a fresh id, and a widget redraw is enough to trigger one while the undo
+     * snackbar is still up. A no-op if the list no longer starts (or ends) with what was added, so
+     * an undo arriving after the user has moved things cannot take the wrong rows.
+     */
+    suspend fun removeItems(listId: String, items: List<TodoItem>, atTop: Boolean = false)
+
     suspend fun setItemDone(listId: String, itemId: String, done: Boolean)
 
     suspend fun setItemText(listId: String, itemId: String, text: String)

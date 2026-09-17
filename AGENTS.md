@@ -6,7 +6,8 @@ Current state: **Phase 6 complete** — lists are real markdown files, one per l
 user picks (app-private storage until they do); nested items expand and collapse, rows are lifted
 by the handle and dragged to reorder and re-nest, and items are typed inline (Enter for the next
 one, Tab to nest), deleted with an undo from the row's button (or by swiping, once that is switched
-on in settings), coloured per list, searched across lists, and hidden once finished. Three
+on in settings), coloured per list, searched across lists, and hidden once finished. A whole list can also be
+pasted in at once from the list's menu, in whatever format it was copied from. Three
 Glance home-screen widgets show a list and tick it off (with a mic and a + in the corner for
 adding one by voice or by typing), list every list and open one, or take a spoken item straight
 onto a list. See [TODO.md](TODO.md) for the roadmap.
@@ -140,6 +141,7 @@ app/src/main/java/dev/shafqat/mytodo/
     Completed.kt             hiding finished items (a view) and sinking them (an edit)
     Search.kt                matching items across every list
     Dictation.kt             cutting a dictated sentence into the items it names
+    TextImport.kt            reading pasted text — bullets, numbers, checkboxes — as items
   data/
     TodoRepository.kt        interface the UI talks to
     MarkdownTodoRepository.kt  keeps the tree and the files in step; no Android APIs
@@ -173,7 +175,8 @@ app/src/main/java/dev/shafqat/mytodo/
                              TodoDragState (drag, depth, auto-scroll)
     search/                  search across every list
     settings/                folder picker, storage state, swipe-to-delete toggle, about rows
-    components/              shared composables (TextInputDialog, ColorPickerDialog, EmptyState)
+    components/              shared composables (TextInputDialog, AddFromTextDialog,
+                             ColorPickerDialog, EmptyState)
     theme/                   Keep-ish palette, typography, note tints
 app/src/test/java/dev/shafqat/mytodo/
   TodoTreeTest.kt            tree helpers
@@ -192,6 +195,7 @@ app/src/test/java/dev/shafqat/mytodo/
   TodoItemEditingUiTest.kt   Compose: inline entry, Enter/Tab, swipe-to-delete
   WidgetRowsTest.kt          widget rows, key round-trips and deep-link intents
   DictationTest.kt           where a dictated sentence is and is not cut into several items
+  TextImportTest.kt          the formats a paste may arrive in, and the nesting it must not invent
   VoiceCaptureTest.kt        a transcript reaching the file, and undo taking it back off
   NavigationTransitionUiTest.kt  Compose: taps during screen transitions
 ```
@@ -342,6 +346,38 @@ app/src/test/java/dev/shafqat/mytodo/
 - **A list with no colour of its own takes the tint of its position in the grid**, so a new folder
   still looks like Keep's wall of coloured notes. "No colour" is stored as a null index, never as
   palette entry zero, so changing the default later reaches every list that never chose one.
+
+## How adding from text works
+
+- **Pasted text gets its own parser.** `itemsFromText` in `model/TextImport.kt` accepts `-`, `*`,
+  `+` and `•` bullets, numbered lines, `- [ ]` / `- [x]` checkboxes and bare lines, mixed within
+  one paste. It is deliberately not `MarkdownParser`: that one reads the app's own files, where an
+  unrecognised line is someone's content and must survive untouched, while here every non-blank
+  line is something the user meant to add and nothing may be dropped.
+- **The shallowest line sets the baseline.** Text copied out of a code block or a quoted reply
+  arrives indented as a whole; without subtracting that baseline every line after the first reads
+  as a child of the one before it. The indent *unit* is then the smallest step actually present,
+  and a line may still only ever be one level deeper than the line above it.
+- **A bullet must be followed by whitespace**, so "e-mail Sam" and "3.5 kg of flour" keep their
+  text. Lines that are only punctuation — a `---` rule, a stray bullet — name nothing and are
+  dropped rather than added as items.
+- **The dialog counts as it goes.** The field is parsed on every keystroke and the count under it
+  says how many items a confirm would add, which is the only way to notice before the fact that a
+  stray indent has nested half the paste under its first line.
+- **Where it lands is chosen in the dialog and remembered** (`addFromTextAtTop`, in the settings
+  DataStore, default "at the end"). The choice is held in the dialog rather than read back from the
+  setting, so the toggle answers the finger instead of the next emission from storage — and it is
+  persisted on confirm, since a cancelled paste should not move the next one.
+- **Undo matches on position and text, never on ids.** `removeItems` drops the first (or last) N
+  top-level rows *if* they still read as what was added. Ids are fresh UUIDs on every parse, any
+  edit redraws the widgets a second later, and a widget redraw reloads the files — so an id-based
+  undo silently did nothing from about a second after the snackbar appeared. The text check is also
+  what makes an undo safe once the user has moved things: it becomes a no-op rather than taking the
+  wrong rows.
+- **A dialog holding a text field cannot be driven under Robolectric here.** `createComposeRule`
+  renders a plain `AlertDialog` fine, but one containing an `OutlinedTextField` never goes idle and
+  the test worker runs out of memory — with or without a focus request. The parser and the batch
+  add/undo are unit tested; the dialog itself is checked on the emulator.
 
 ## How the widgets work
 

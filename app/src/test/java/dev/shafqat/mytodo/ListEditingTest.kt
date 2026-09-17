@@ -7,6 +7,7 @@ import dev.shafqat.mytodo.data.store.LocalDirectoryStore
 import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.flattenVisible
+import dev.shafqat.mytodo.model.itemsFromText
 import dev.shafqat.mytodo.model.visibleRowOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -272,6 +273,88 @@ class ListEditingTest {
         advanceUntilIdle()
 
         assertNull(prefsStore.all()["list.md"])
+    }
+
+    // --- adding a pasted batch --------------------------------------------------------------
+
+    @Test
+    fun `a pasted list lands at the end, nesting and ticks intact`() = runTest {
+        val repository = loaded()
+
+        repository.addItems("list.md", itemsFromText("- [ ] D\n\t- [x] D1"))
+        advanceUntilIdle()
+
+        assertEquals("A\n  A1\n  A2\nB\nC\nD\n  D1", repository.outline())
+        assertEquals(markdown + "- [ ] D\n\t- [X] D1\n", read())
+    }
+
+    @Test
+    fun `a pasted list can land at the top instead`() = runTest {
+        val repository = loaded()
+
+        repository.addItems("list.md", itemsFromText("- D\n- E"), atTop = true)
+        advanceUntilIdle()
+
+        assertEquals("D\nE\nA\n  A1\n  A2\nB\nC", repository.outline())
+    }
+
+    @Test
+    fun `undoing a paste removes exactly what it added`() = runTest {
+        val repository = loaded()
+        val added = itemsFromText("- D\n\t- D1\n- E")
+
+        repository.addItems("list.md", added, atTop = true)
+        advanceUntilIdle()
+        // Something else arrives before the undo: it must survive it.
+        repository.addItem("list.md", "F")
+        advanceUntilIdle()
+
+        repository.removeItems("list.md", added, atTop = true)
+        advanceUntilIdle()
+
+        assertEquals("A\n  A1\n  A2\nB\nC\nF", repository.outline())
+        assertEquals(markdown + "- [ ] F\n", read())
+    }
+
+    @Test
+    fun `undoing a paste survives a reload in between`() = runTest {
+        // Found on a device: any edit redraws the widgets a second later, a widget redraw reloads
+        // the files, and a reload hands every item a new id. An undo that named ids silently did
+        // nothing from that moment on.
+        val repository = loaded()
+        val added = itemsFromText("- D\n\t- D1")
+
+        repository.addItems("list.md", added)
+        advanceUntilIdle()
+        repository.refresh()
+        advanceUntilIdle()
+
+        // The premise: nothing the paste was holding on to still names anything in the list.
+        val idsNow = repository.lists.value.single().items.flattenVisible().map { it.item.id }
+        assertTrue(added.none { it.id in idsNow })
+
+        repository.removeItems("list.md", added)
+        advanceUntilIdle()
+
+        assertEquals("A\n  A1\n  A2\nB\nC", repository.outline())
+        assertEquals(markdown, read())
+    }
+
+    @Test
+    fun `undoing a paste leaves a list that has moved on alone`() = runTest {
+        val repository = loaded()
+        val added = itemsFromText("- D")
+
+        repository.addItems("list.md", added)
+        advanceUntilIdle()
+        // The pasted row is no longer the last one, so the undo can no longer be sure of it.
+        repository.addItem("list.md", "E")
+        advanceUntilIdle()
+
+        repository.removeItems("list.md", added)
+        advanceUntilIdle()
+
+        assertEquals("A\n  A1\n  A2\nB\nC\nD\nE", repository.outline())
     }
 
     private companion object {

@@ -244,6 +244,37 @@ class MarkdownTodoRepository(
         return item
     }
 
+    override suspend fun addItems(listId: String, items: List<TodoItem>, atTop: Boolean) {
+        if (items.isEmpty()) return
+        // Top-level rows either side of what is there already, so this needs no row coordinates:
+        // the trees arrive built, and the paste's own nesting is simply kept.
+        mutate(listId) { existing -> if (atTop) items + existing else existing + items }
+        rekeyCollapse(listId)
+    }
+
+    override suspend fun removeItems(listId: String, items: List<TodoItem>, atTop: Boolean) {
+        if (items.isEmpty()) return
+
+        val texts = items.map { it.text }
+        mutate(listId) { existing ->
+            if (existing.size < items.size) return@mutate existing
+            if (atTop) {
+                if (existing.take(items.size).map { it.text } == texts) {
+                    existing.drop(items.size)
+                } else {
+                    existing
+                }
+            } else {
+                if (existing.takeLast(items.size).map { it.text } == texts) {
+                    existing.dropLast(items.size)
+                } else {
+                    existing
+                }
+            }
+        }
+        rekeyCollapse(listId)
+    }
+
     override suspend fun setItemDone(listId: String, itemId: String, done: Boolean) {
         mutate(listId) { items -> items.updateItem(itemId) { it.copy(done = done) } }
     }

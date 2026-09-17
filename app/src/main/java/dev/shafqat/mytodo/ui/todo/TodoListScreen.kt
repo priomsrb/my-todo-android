@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.Visibility
@@ -42,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,6 +53,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.hasCompleted
+import dev.shafqat.mytodo.ui.components.AddFromTextDialog
 import dev.shafqat.mytodo.ui.components.ColorPickerDialog
 import dev.shafqat.mytodo.ui.components.EmptyState
 import dev.shafqat.mytodo.ui.components.TextInputDialog
@@ -73,11 +76,14 @@ fun TodoListScreen(
     val list by viewModel.list.collectAsStateWithLifecycle()
     val focusItemId by viewModel.focusItemId.collectAsStateWithLifecycle()
     val pendingUndo by viewModel.pendingUndo.collectAsStateWithLifecycle()
+    val pendingAddUndo by viewModel.pendingAddUndo.collectAsStateWithLifecycle()
+    val addFromTextAtTop by viewModel.addFromTextAtTop.collectAsStateWithLifecycle()
     val renamedListId by viewModel.renamedListId.collectAsStateWithLifecycle()
     val swipeToDeleteEnabled by viewModel.swipeToDeleteEnabled.collectAsStateWithLifecycle()
 
     var showColorPicker by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showAddFromTextDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     val prefs = list?.prefs ?: ListPrefs.Default
@@ -119,6 +125,25 @@ fun TodoListScreen(
         }
     }
 
+    // Resolved while composing, because a plural string is a composable read and the effect below
+    // is not; null whenever there is nothing to announce.
+    val addedMessage = pendingAddUndo?.let {
+        pluralStringResource(R.plurals.items_added, it.rowCount, it.rowCount)
+    }
+    LaunchedEffect(pendingAddUndo) {
+        val added = pendingAddUndo ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = addedMessage ?: return@LaunchedEffect,
+            actionLabel = undoLabel,
+            duration = SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.undoAdd()
+        } else if (viewModel.pendingAddUndo.value === added) {
+            viewModel.dismissAddUndo()
+        }
+    }
+
     Scaffold(
         containerColor = tint,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -144,6 +169,7 @@ fun TodoListScreen(
                         hasCompleted = list?.items?.hasCompleted() == true,
                         onDismiss = { menuExpanded = false },
                         onRename = { showRenameDialog = true },
+                        onAddFromText = { showAddFromTextDialog = true },
                         onPickColor = { showColorPicker = true },
                         onToggleHideCompleted = { viewModel.setHideCompleted(!prefs.hideCompleted) },
                         onMoveCompletedToBottom = viewModel::moveCompletedToBottom,
@@ -219,6 +245,17 @@ fun TodoListScreen(
         )
     }
 
+    if (showAddFromTextDialog) {
+        AddFromTextDialog(
+            initialAtTop = addFromTextAtTop,
+            onConfirm = { text, atTop ->
+                viewModel.addFromText(text, atTop)
+                showAddFromTextDialog = false
+            },
+            onDismiss = { showAddFromTextDialog = false },
+        )
+    }
+
     if (showRenameDialog) {
         TextInputDialog(
             title = stringResource(R.string.rename_list),
@@ -241,6 +278,7 @@ private fun ListMenu(
     hasCompleted: Boolean,
     onDismiss: () -> Unit,
     onRename: () -> Unit,
+    onAddFromText: () -> Unit,
     onPickColor: () -> Unit,
     onToggleHideCompleted: () -> Unit,
     onMoveCompletedToBottom: () -> Unit,
@@ -250,6 +288,10 @@ private fun ListMenu(
         MenuRow(stringResource(R.string.rename_list), Icons.Default.DriveFileRenameOutline) {
             onDismiss()
             onRename()
+        }
+        MenuRow(stringResource(R.string.add_from_text), Icons.Default.PlaylistAdd) {
+            onDismiss()
+            onAddFromText()
         }
         MenuRow(stringResource(R.string.list_color), Icons.Default.Palette) {
             onDismiss()

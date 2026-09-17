@@ -184,6 +184,19 @@ Worth knowing before Phase 6:
       scroll, so the gesture fired by accident; the row's delete button is unaffected, and the
       undo snackbar still backs both
 
+## Phase 6b — Adding from text ✅
+
+- [x] "Add from text" in a list's overflow menu: a multi-line dialog that takes a whole list at
+      once. `•`, `-`, `*`, `+` bullets, numbered lines, `- [ ]` / `- [x]` checkboxes and bare lines
+      all parse, mixed within one paste, indented with tabs or spaces
+- [x] The dialog counts what it will add as you type, so a stray indent that has nested half the
+      list under its first line is visible before anything lands
+- [x] The paste goes to the end or the top, chosen in the dialog and remembered for the next one
+- [x] Undo backs the whole batch out — matched by position and text, never by id, since a widget
+      redraw reloads the files about a second after any edit and every id changes with it
+- [x] Found while verifying: a `- [ ]` paste indented as a whole (out of a code block, say) used to
+      nest every line under the first. The shallowest line sets the baseline now
+
 ## Phase 7 — Robustness and extras
 
 - [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers
@@ -226,6 +239,18 @@ Worth knowing before Phase 6:
   each finished item down by hand would.
 - **A list's colour and view options live in `list_prefs`, keyed by file name**, and follow a
   rename and vanish with a delete, the same way collapse state does.
+- **Pasted text is parsed by its own reader, not by `MarkdownParser`.** The file parser must keep
+  a line it does not recognise, because that is someone's hand-written content; the paste reader
+  must turn every non-blank line into an item, because that is what the user asked for. Same
+  shapes, opposite duty for the leftovers.
+- **A paste lands at the end by default, and the choice is remembered.** The list is in front of
+  you when you paste into it, so the end is where the eye already is — but a list you feed from
+  elsewhere is often a list you want on top, and that habit should only have to be expressed once.
+  Cancelling does not change it: confirming is what makes a choice the remembered one.
+- **The undo for a paste names positions and text, not ids.** Ids are fresh on every parse, any
+  edit redraws the widgets a second later, and a widget redraw reloads the files — so an id-based
+  undo quietly stopped working about a second after the snackbar appeared. It is also why the undo
+  is a no-op if the list no longer starts (or ends) with what was added.
 - **Swipe-to-delete is opt-in**, a boolean in the settings DataStore that ships off. It is a
   destructive gesture on the same surface a finger uses to scroll, and deleting is already a
   one-tap button on every row — so the default is the safe one, not the convenient one.

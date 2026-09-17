@@ -9,6 +9,7 @@ import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.findItem
+import dev.shafqat.mytodo.model.itemsFromText
 import dev.shafqat.mytodo.model.visibleRowOf
 import dev.shafqat.mytodo.todoApp
 import dev.shafqat.mytodo.todoRepository
@@ -34,6 +35,20 @@ data class DeletedItem(
     val depth: Int,
 )
 
+/**
+ * What one paste added, kept only long enough for its undo snackbar.
+ *
+ * The items themselves and where they went, not their ids: a reload re-parses the files and gives
+ * every item a new id, and the widget redraw that follows any edit is enough to cause one inside
+ * the few seconds the snackbar is up. [rowCount] is carried because it is what the snackbar says,
+ * and a pasted item may be a whole subtree.
+ */
+data class AddedItems(
+    val items: List<TodoItem>,
+    val atTop: Boolean,
+    val rowCount: Int,
+)
+
 class TodoListViewModel(
     application: Application,
     private val listId: String,
@@ -57,6 +72,14 @@ class TodoListViewModel(
     /** The item that should open for typing, set whenever one is created. */
     private val _focusItemId = MutableStateFlow<String?>(null)
     val focusItemId: StateFlow<String?> = _focusItemId.asStateFlow()
+
+    /** Where "Add from text" last put a paste, so the dialog opens on the same choice. */
+    val addFromTextAtTop: StateFlow<Boolean> = settings.addFromTextAtTop
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** The most recent paste, while the snackbar offering to undo it is still up. */
+    private val _pendingAddUndo = MutableStateFlow<AddedItems?>(null)
+    val pendingAddUndo: StateFlow<AddedItems?> = _pendingAddUndo.asStateFlow()
 
     /** The most recent deletion, while the snackbar offering to undo it is still up. */
     private val _pendingUndo = MutableStateFlow<DeletedItem?>(null)
@@ -98,6 +121,34 @@ class TodoListViewModel(
         viewModelScope.launch {
             _focusItemId.value = repository.addItemAfter(listId, afterItemId).id
         }
+    }
+
+    /**
+     * "Add from text": a pasted list, parsed and added in one go.
+     *
+     * The position is passed in as well as remembered, because the dialog is where the choice was
+     * made and the setting is only there so the next paste starts from the same place.
+     */
+    fun addFromText(text: String, atTop: Boolean) {
+        val added = itemsFromText(text)
+        if (added.isEmpty()) return
+
+        viewModelScope.launch {
+            settings.setAddFromTextAtTop(atTop)
+            repository.addItems(listId, added, atTop)
+            _pendingAddUndo.value = AddedItems(added, atTop, added.rowCount())
+        }
+    }
+
+    /** Undo: takes the pasted batch back off, leaving anything that arrived since. */
+    fun undoAdd() {
+        val added = _pendingAddUndo.value ?: return
+        _pendingAddUndo.value = null
+        viewModelScope.launch { repository.removeItems(listId, added.items, added.atTop) }
+    }
+
+    fun dismissAddUndo() {
+        _pendingAddUndo.value = null
     }
 
     fun setText(itemId: String, text: String) {
@@ -202,3 +253,6 @@ class TodoListViewModel(
         const val LOAD_TIMEOUT_MILLIS = 5_000L
     }
 }
+
+/** Every row a paste created, nested ones included — one item may be a whole subtree. */
+private fun List<TodoItem>.rowCount(): Int = sumOf { 1 + it.children.rowCount() }

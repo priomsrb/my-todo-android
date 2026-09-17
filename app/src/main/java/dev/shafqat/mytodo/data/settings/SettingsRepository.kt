@@ -49,8 +49,24 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { preferences -> preferences[SWIPE_TO_DELETE] = enabled }
     }
 
+    /**
+     * Whether "Add from text" puts the paste at the top of the list rather than the end.
+     *
+     * The dialog offers both and remembers whichever was used last, so a habit only has to be
+     * expressed once. It ships off: the list is in front of you when you paste into it, and the
+     * end is where the eye already is.
+     */
+    val addFromTextAtTop: Flow<Boolean> = context.dataStore.data
+        .map { it[ADD_FROM_TEXT_AT_TOP] ?: false }
+        .distinctUntilChanged()
+
+    suspend fun setAddFromTextAtTop(atTop: Boolean) {
+        context.dataStore.edit { preferences -> preferences[ADD_FROM_TEXT_AT_TOP] = atTop }
+    }
+
     private companion object {
         val TODO_FOLDER_URI = stringPreferencesKey("todo_folder_uri")
         val SWIPE_TO_DELETE = booleanPreferencesKey("swipe_to_delete")
+        val ADD_FROM_TEXT_AT_TOP = booleanPreferencesKey("add_from_text_at_top")
     }
 }

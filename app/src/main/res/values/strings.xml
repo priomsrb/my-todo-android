@@ -49,6 +49,20 @@
     <string name="hide_completed">Hide completed</string>
     <string name="show_completed">Show completed</string>
     <string name="move_completed_to_bottom">Move completed to bottom</string>
+    <string name="add">Add</string>
+    <string name="add_from_text">Add from text</string>
+    <string name="add_from_text_hint">Paste or type a list, one item per line</string>
+    <string name="add_from_text_formats">Bullets, numbers and “- [ ]” all work. Indent to nest.</string>
+    <string name="add_at_end">At the end</string>
+    <string name="add_at_top">At the top</string>
+    <plurals name="add_from_text_count">
+        <item quantity="one">Adds %1$d item</item>
+        <item quantity="other">Adds %1$d items</item>
+    </plurals>
+    <plurals name="items_added">
+        <item quantity="one">%1$d item added</item>
+        <item quantity="other">%1$d items added</item>
+    </plurals>
     <string name="search_title">Search</string>
     <string name="search_hint">Search all lists</string>
     <string name="search_prompt">Type to find an item in any of your lists.</string>
