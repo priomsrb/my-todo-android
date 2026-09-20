@@ -40,6 +40,23 @@ fun List<TodoItem>.flattenVisible(depth: Int = 0): List<VisibleRow> =
         }
     }
 
+/**
+ * Whether two trees say the same thing, ignoring the ids and the collapse state.
+ *
+ * What a re-read of an unchanged file produces differs from what is already in memory only by
+ * those two: the parser mints a fresh id for every item, and collapse lives outside the file. So
+ * this is the question "did anything actually change on disk?", and a no means the tree in memory
+ * can be kept — ids included, which is what keeps a row being edited from being torn down under
+ * the user. See invariant 4 in AGENTS.md.
+ */
+fun List<TodoItem>.hasSameContentAs(other: List<TodoItem>): Boolean =
+    size == other.size &&
+        zip(other).all { (mine, theirs) ->
+            mine.text == theirs.text &&
+                mine.done == theirs.done &&
+                mine.children.hasSameContentAs(theirs.children)
+        }
+
 /** Applies [transform] to the item with [id] anywhere in the tree, leaving the rest untouched. */
 fun List<TodoItem>.updateItem(id: String, transform: (TodoItem) -> TodoItem): List<TodoItem> =
     map { item ->

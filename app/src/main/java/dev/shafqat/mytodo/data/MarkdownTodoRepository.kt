@@ -15,6 +15,7 @@ import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.addItem
 import dev.shafqat.mytodo.model.completedLast
 import dev.shafqat.mytodo.model.fileNameFor
+import dev.shafqat.mytodo.model.hasSameContentAs
 import dev.shafqat.mytodo.model.indentItem
 import dev.shafqat.mytodo.model.insertSubtree
 import dev.shafqat.mytodo.model.moveSubtree
@@ -133,7 +134,7 @@ class MarkdownTodoRepository(
                     _lists.value.firstOrNull { it.fileName == fileName }
                         ?: readList(store, fileName, collapsedKeys, allPrefs)
                 } else {
-                    readList(store, fileName, collapsedKeys, allPrefs)
+                    keepingIdentity(readList(store, fileName, collapsedKeys, allPrefs))
                 }
             }
 
@@ -150,6 +151,25 @@ class MarkdownTodoRepository(
                 }
             }
             _storageState.value = StorageState.Ready(store.label, loaded.size)
+        }
+    }
+
+    /**
+     * The list as it was in memory when the file turns out to say the same thing, and [loaded]
+     * otherwise.
+     *
+     * Every read mints new ids, so a reload that found no change would still replace every item
+     * with an identical one under a different id — and anything keyed on those ids, above all the
+     * row the user is typing into, would be torn down and rebuilt. Reloads are not rare: a widget
+     * redraws roughly a second after any edit, and it refreshes before it draws. Only the ids and
+     * the collapse state are kept; what is in the file is re-read as always.
+     */
+    private fun keepingIdentity(loaded: TodoList): TodoList {
+        val current = _lists.value.firstOrNull { it.fileName == loaded.fileName } ?: return loaded
+        return if (current.items.hasSameContentAs(loaded.items)) {
+            loaded.copy(items = current.items)
+        } else {
+            loaded
         }
     }
 

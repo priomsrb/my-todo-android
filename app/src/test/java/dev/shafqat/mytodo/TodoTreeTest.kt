@@ -5,11 +5,14 @@ import dev.shafqat.mytodo.model.addItem
 import dev.shafqat.mytodo.model.doneCount
 import dev.shafqat.mytodo.model.findItem
 import dev.shafqat.mytodo.model.flattenVisible
+import dev.shafqat.mytodo.model.hasSameContentAs
 import dev.shafqat.mytodo.model.removeItem
 import dev.shafqat.mytodo.model.totalCount
 import dev.shafqat.mytodo.model.updateItem
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TodoTreeTest {
@@ -85,4 +88,32 @@ class TodoTreeTest {
         assertEquals(4, tree.totalCount())
         assertEquals(1, tree.doneCount())
     }
+    // --- comparing a reload against what is in memory ---------------------------------------
+
+    @Test
+    fun `the same tree read again, with fresh ids and no collapse, counts as unchanged`() {
+        // What the parser hands back for a file nothing has touched: same text and ticks, new ids,
+        // and no collapse state, since that is not in the file.
+        val reread = listOf(
+            TodoItem(
+                text = "A",
+                children = listOf(
+                    TodoItem(text = "A1", children = listOf(TodoItem(text = "A1a", done = true))),
+                ),
+            ),
+            TodoItem(text = "B"),
+        )
+
+        assertTrue(tree.hasSameContentAs(reread))
+        assertTrue(tree.map { it.copy(collapsed = true) }.hasSameContentAs(reread))
+    }
+
+    @Test
+    fun `changed text, a changed tick or a changed shape all count as a change`() {
+        assertFalse(tree.hasSameContentAs(tree.updateItem("b") { it.copy(text = "B!") }))
+        assertFalse(tree.hasSameContentAs(tree.updateItem("a1a") { it.copy(done = false) }))
+        assertFalse(tree.hasSameContentAs(tree.removeItem("b")))
+        assertFalse(tree.hasSameContentAs(tree.updateItem("b") { it.copy(children = listOf(TodoItem(text = "new"))) }))
+    }
+
 }

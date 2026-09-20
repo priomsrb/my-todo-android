@@ -319,13 +319,16 @@ class ListEditingTest {
     @Test
     fun `undoing a paste survives a reload in between`() = runTest {
         // Found on a device: any edit redraws the widgets a second later, a widget redraw reloads
-        // the files, and a reload hands every item a new id. An undo that named ids silently did
-        // nothing from that moment on.
+        // the files, and a reload of a file that has changed hands every item a new id. An undo
+        // that named ids silently did nothing from that moment on. A file edited elsewhere is the
+        // case that still churns ids, now that an unchanged one keeps them.
         val repository = loaded()
         val added = itemsFromText("- D\n\t- D1")
 
         repository.addItems("list.md", added)
         advanceUntilIdle()
+        // At the top, so the paste is still the tail of the list and the undo is still allowed.
+        File(folder, "list.md").writeText("- [ ] Added elsewhere\n" + read())
         repository.refresh()
         advanceUntilIdle()
 
@@ -336,8 +339,8 @@ class ListEditingTest {
         repository.removeItems("list.md", added)
         advanceUntilIdle()
 
-        assertEquals("A\n  A1\n  A2\nB\nC", repository.outline())
-        assertEquals(markdown, read())
+        assertEquals("Added elsewhere\nA\n  A1\n  A2\nB\nC", repository.outline())
+        assertEquals("- [ ] Added elsewhere\n" + markdown, read())
     }
 
     @Test

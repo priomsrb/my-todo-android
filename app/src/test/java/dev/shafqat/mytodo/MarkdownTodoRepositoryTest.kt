@@ -3,6 +3,7 @@ package dev.shafqat.mytodo
 import dev.shafqat.mytodo.data.MarkdownTodoRepository
 import dev.shafqat.mytodo.data.StorageState
 import dev.shafqat.mytodo.data.store.LocalDirectoryStore
+import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.flattenVisible
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -213,6 +214,44 @@ class MarkdownTodoRepositoryTest {
     }
 
     @Test
+    fun `a refresh that finds no change keeps the items it already had`() = runTest {
+        write("groceries.md", "- [ ] Milk\n\t- [ ] Whole\n")
+        val repository = repository()
+        repository.useStore(store())
+        advanceUntilIdle()
+
+        // An edit, saved, and then a reload — which is what a widget redraw does about a second
+        // after any change. Ids have to survive it: a row being edited is keyed on one, and it is
+        // torn down, mid-typing, if the id underneath it changes.
+        val milk = repository.lists.value.single().items.first().id
+        repository.setItemText("groceries.md", milk, "Oat milk")
+        advanceUntilIdle()
+        val before = repository.lists.value.single().items.ids()
+
+        repository.refresh()
+        advanceUntilIdle()
+
+        assertEquals(before, repository.lists.value.single().items.ids())
+        assertEquals(listOf("Oat milk", "Whole"), repository.lists.value.single().items.texts())
+    }
+
+    @Test
+    fun `a refresh that finds the file changed takes what is on disk`() = runTest {
+        write("groceries.md", "- [ ] Milk\n")
+        val repository = repository()
+        repository.useStore(store())
+        advanceUntilIdle()
+        val before = repository.lists.value.single().items.ids()
+
+        write("groceries.md", "- [ ] Oat milk\n")
+        repository.refresh()
+        advanceUntilIdle()
+
+        assertEquals(listOf("Oat milk"), repository.lists.value.single().items.texts())
+        assertTrue(repository.lists.value.single().items.ids() != before)
+    }
+
+    @Test
     fun `refresh does not discard an edit that has not been saved yet`() = runTest {
         write("groceries.md", "- [ ] Milk\n")
         val repository = repository()
@@ -284,4 +323,11 @@ class MarkdownTodoRepositoryTest {
     private companion object {
         const val AUTOSAVE_DELAY = 500L
     }
+    /** Every id in the tree, so a test can say whether identity survived a reload. */
+    private fun List<TodoItem>.ids(): List<String> =
+        flatMap { listOf(it.id) + it.children.ids() }
+
+    private fun List<TodoItem>.texts(): List<String> =
+        flatMap { listOf(it.text) + it.children.texts() }
+
 }
