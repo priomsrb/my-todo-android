@@ -26,6 +26,7 @@ import dev.shafqat.mytodo.model.updateItem
 import dev.shafqat.mytodo.model.visibleRowOf
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -411,14 +412,29 @@ class MarkdownTodoRepository(
         fileName?.let(::scheduleSave)
     }
 
-    /** Replaces any pending write for this file, so rapid edits collapse into a single save. */
+    /**
+     * Replaces any pending write for this file, so rapid edits collapse into a single save.
+     *
+     * The file stays marked as pending until the write has actually landed, not merely until it
+     * has been started: a reload treats a file with no pending write as the authority, and one
+     * that arrives mid-write — a widget redraws about a second after any edit — would read the
+     * version from before it and take that over what the user has on screen.
+     *
+     * Started lazily so the job is in the map before its own body can clear it, and cleared only
+     * if it is still the pending one, since a later edit may have replaced it by then.
+     */
     private fun scheduleSave(fileName: String) {
         pendingSaves.remove(fileName)?.cancel()
-        pendingSaves[fileName] = scope.launch {
+        val job = scope.launch(start = CoroutineStart.LAZY) {
             delay(autosaveDelayMillis)
-            pendingSaves.remove(fileName)
-            save(fileName)
+            try {
+                save(fileName)
+            } finally {
+                pendingSaves.remove(fileName, coroutineContext[Job])
+            }
         }
+        pendingSaves[fileName] = job
+        job.start()
     }
 
     private suspend fun save(fileName: String) {

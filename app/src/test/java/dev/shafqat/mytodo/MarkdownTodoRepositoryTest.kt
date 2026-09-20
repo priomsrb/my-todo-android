@@ -3,9 +3,12 @@ package dev.shafqat.mytodo
 import dev.shafqat.mytodo.data.MarkdownTodoRepository
 import dev.shafqat.mytodo.data.StorageState
 import dev.shafqat.mytodo.data.store.LocalDirectoryStore
+import dev.shafqat.mytodo.data.store.TodoFileStore
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.flattenVisible
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -267,6 +270,35 @@ class MarkdownTodoRepositoryTest {
     }
 
     @Test
+    fun `a refresh that lands while a save is still being written keeps the edit`() = runTest {
+        write("groceries.md", "- [ ] Milk\n")
+        // A write held open, which is where one is on a device more often than it looks: a SAF
+        // write goes through a content provider, and a widget reloads about a second after any
+        // edit. A reload that arrived mid-write used to read the file from before it and take
+        // that over what the user had on screen.
+        val gate = CompletableDeferred<Unit>()
+        val repository = repository()
+        repository.useStore(HeldWriteStore(store(), gate))
+        advanceUntilIdle()
+
+        repository.addItem("groceries.md", "Eggs")
+        advanceUntilIdle()
+        assertEquals("- [ ] Milk\n", read("groceries.md"))
+
+        // Concurrently, because a reload reads the files before it takes the lock the write holds
+        // — reading what is there now and publishing it once the write lets go.
+        val reload = launch { repository.refresh() }
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        reload.join()
+
+        assertEquals(listOf("Milk", "Eggs"), repository.lists.value.single().items.texts())
+        assertEquals("- [ ] Milk\n- [ ] Eggs\n", read("groceries.md"))
+    }
+
+    @Test
     fun `flushing writes pending edits immediately`() = runTest {
         write("groceries.md", "- [ ] Milk\n")
         val repository = repository()
@@ -329,5 +361,16 @@ class MarkdownTodoRepositoryTest {
 
     private fun List<TodoItem>.texts(): List<String> =
         flatMap { listOf(it.text) + it.children.texts() }
+
+    /** A store whose writes wait for [gate], so a test can catch one in flight. */
+    private class HeldWriteStore(
+        private val delegate: TodoFileStore,
+        private val gate: CompletableDeferred<Unit>,
+    ) : TodoFileStore by delegate {
+        override suspend fun write(fileName: String, content: String) {
+            gate.await()
+            delegate.write(fileName, content)
+        }
+    }
 
 }
