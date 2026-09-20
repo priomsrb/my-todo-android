@@ -197,6 +197,28 @@ Worth knowing before Phase 6:
 - [x] Found while verifying: a `- [ ]` paste indented as a whole (out of a code block, say) used to
       nest every line under the first. The shallowest line sets the baseline now
 
+## Phase 6c — The edit toolbar ✅
+
+- [x] A toolbar on the item being edited, pinned above the keyboard: indent and outdent, the two
+      moves a hardware keyboard has as Tab and Shift-Tab and a thumb had no way to reach. Built to
+      take more buttons — the row is laid out for a list, not for exactly two
+- [x] A button whose move is impossible is greyed out rather than removed, so nothing shifts under
+      the thumb as the edit moves from row to row. Whether a move is possible is asked of the tree
+      (`canIndentItem` / `canOutdentItem` work it out by trying the move), so the buttons cannot
+      drift from what the keys do
+- [x] "Add item" steps aside while the toolbar is up: it would sit on top of it, and Enter already
+      starts the next item
+- [x] Found on the emulator while checking it, and fixed in the data layer: an edit died about a
+      second after any change — a widget redraws on that debounce, a redraw calls `refresh()`, and
+      a reload minted new ids for every item, so the row being typed into was torn down under the
+      user. A reload that finds a file unchanged now keeps the items it already had, ids and all,
+      which is what invariant 4 always promised. Reproduced first (failed within 5 rounds of a tap
+      loop), then 10/10 clean, and typing through the refresh now survives too
+- [x] Checked that pressing a button does not end the edit — the editor treats a lost focus as the
+      end, so a toolbar that stole it would close itself. Plain `IconButton`s hold up, hardware
+      keyboard attached included (10/10 rounds); the edits that died a second after a press were
+      the reload above, not the buttons
+
 ## Phase 7 — Robustness and extras
 
 - [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers
@@ -208,6 +230,7 @@ Worth knowing before Phase 6:
       editing made this more visible, since every keystroke now changes the key. Re-key collapse
       state on edit if it proves annoying in practice
 - [ ] Conflict handling when a file changed on disk while edits were pending
+- [ ] More buttons on the edit toolbar as they earn their place — move up/down, tick off, delete
 - [ ] Undo/redo stack for structural edits
 - [ ] Instrumented UI tests for the drag interaction
 - [ ] Widget rendering has no automated coverage — the row projection and key round-trip are unit
@@ -258,6 +281,15 @@ Worth knowing before Phase 6:
   single-line field scrolling sideways, so the row collapsed to one line and the list jumped under
   the finger. Viewing and editing now lay out identically — verified on the emulator, where the two
   screens differ only in the pixels of the caret itself.
+- **A reload keeps the items it already had when the file has not changed.** Every parse mints
+  fresh ids, and something reloads constantly — a widget redraws about a second after any edit and
+  refreshes before it draws — so an open editor, keyed on an id, was torn down under the user a
+  second after they pressed anything. Only a file that actually changed hands out new ids now.
+  Invariant 4 said ids survive a save/load; this is what makes it true.
+- **The edit toolbar sits above the keyboard, not under the row.** It is in the same place
+  whichever row is open, it is where the thumb already is, and it cannot push the list around
+  mid-edit. It is also why the screen consumes the scaffold's insets: the bar asks for the
+  keyboard inset itself and must not count the navigation bar twice.
 - **Tapping an item's text puts the caret where the finger landed**, not at the end. The end is
   right for a row that opened without a tap — a new item from Enter, or one a widget opened — and
   those still get it; a tap has a position and it is what the user meant. Tapping the empty space

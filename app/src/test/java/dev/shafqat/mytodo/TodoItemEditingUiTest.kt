@@ -9,10 +9,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -39,8 +44,11 @@ import dev.shafqat.mytodo.model.removeItem
 import dev.shafqat.mytodo.model.updateItem
 import dev.shafqat.mytodo.model.visibleRowOf
 import dev.shafqat.mytodo.ui.theme.MyTodoTheme
+import dev.shafqat.mytodo.ui.todo.EditToolbarTag
+import dev.shafqat.mytodo.ui.todo.IndentButtonTag
 import dev.shafqat.mytodo.ui.todo.ItemEditActions
 import dev.shafqat.mytodo.ui.todo.ItemEditorTag
+import dev.shafqat.mytodo.ui.todo.OutdentButtonTag
 import dev.shafqat.mytodo.ui.todo.TodoItemList
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -76,6 +84,9 @@ class TodoItemEditingUiTest {
     /** Ids of every item that was deleted, in order — including the blank ones tidied away. */
     private val deleted = mutableListOf<String>()
 
+    /** The composition's input mode, so a test can put it in the mode a keyboard user is in. */
+    private lateinit var inputMode: InputModeManager
+
     /** A lifecycle the test owns, so it can send the screen to the background on demand. */
     private val lifecycleOwner = object : LifecycleOwner {
         val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
@@ -89,6 +100,7 @@ class TodoItemEditingUiTest {
     ) {
         var items by remember { mutableStateOf(start) }
         var focusItemId by remember { mutableStateOf<String?>(null) }
+        inputMode = LocalInputModeManager.current
         renderedRows = items.flattenVisible().map { it.item.text to it.depth }
 
         MyTodoTheme {
@@ -301,6 +313,102 @@ class TodoItemEditingUiTest {
         composeRule.waitForIdle()
 
         assertEquals(listOf("Alpha", "Bravo!", "Charlie"), renderedOrder)
+        assertEquals(emptyList<String>(), deleted)
+    }
+
+    // --- the edit toolbar -------------------------------------------------------------------
+
+    @Test
+    fun `the toolbar is there only while an item is being edited`() {
+        composeRule.setContent { Harness() }
+        composeRule.onNodeWithTag(EditToolbarTag).assertDoesNotExist()
+
+        startEditing("Bravo")
+        composeRule.onNodeWithTag(EditToolbarTag).assertIsDisplayed()
+
+        // Enter on the new, still-empty row is how an entry run ends.
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(EditToolbarTag).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the toolbar's indent button nests the item, as Tab does`() {
+        composeRule.setContent { Harness() }
+        startEditing("Bravo")
+
+        composeRule.onNodeWithTag(IndentButtonTag).performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha" to 0, "Bravo" to 1, "Charlie" to 0), renderedRows)
+    }
+
+    @Test
+    fun `the toolbar's outdent button lifts it back out`() {
+        composeRule.setContent { Harness() }
+        startEditing("Bravo")
+        composeRule.onNodeWithTag(IndentButtonTag).performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(OutdentButtonTag).performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha" to 0, "Bravo" to 0, "Charlie" to 0), renderedRows)
+    }
+
+    @Test
+    fun `a button whose move is impossible is greyed out rather than gone`() {
+        composeRule.setContent { Harness() }
+
+        // The first row has nothing above to nest under, and nothing to be lifted out of.
+        startEditing("Alpha")
+        composeRule.onNodeWithTag(IndentButtonTag).assertIsNotEnabled()
+        composeRule.onNodeWithTag(OutdentButtonTag).assertIsNotEnabled()
+
+        // The second has a sibling above it, so it can go in — and only then come back out.
+        startEditing("Bravo")
+        composeRule.onNodeWithTag(IndentButtonTag).assertIsEnabled()
+        composeRule.onNodeWithTag(OutdentButtonTag).assertIsNotEnabled()
+
+        composeRule.onNodeWithTag(IndentButtonTag).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(OutdentButtonTag).assertIsEnabled()
+    }
+
+    @Test
+    fun `a toolbar button pressed with a keyboard attached does not end the edit`() {
+        composeRule.setContent { Harness() }
+        startEditing("Bravo")
+
+        // Out of touch mode — where a keyboard user is — a clickable is focusable, and focus
+        // leaving the field is what ends an edit. Checked here as well as by hand on a device,
+        // since a toolbar that closed the editor it belongs to would be useless.
+        composeRule.runOnUiThread { inputMode.requestInputMode(InputMode.Keyboard) }
+        composeRule.onNodeWithTag(IndentButtonTag).performClick()
+        composeRule.waitForIdle()
+
+        editor().assertIsDisplayed()
+        assertEquals(listOf("Alpha" to 0, "Bravo" to 1, "Charlie" to 0), renderedRows)
+    }
+
+    @Test
+    fun `pressing a toolbar button leaves the editor open on the same item`() {
+        composeRule.setContent { Harness() }
+        startEditing("Bravo")
+
+        composeRule.onNodeWithTag(IndentButtonTag).performClick()
+        composeRule.waitForIdle()
+
+        // The field must not have lost focus: that ends the edit, and a brand new item would be
+        // thrown away by the time the next button press landed.
+        editor().assertIsDisplayed()
+        editor().performTextInput("!")
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha" to 0, "Bravo!" to 1, "Charlie" to 0), renderedRows)
         assertEquals(emptyList<String>(), deleted)
     }
 

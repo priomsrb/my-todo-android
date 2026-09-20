@@ -5,7 +5,8 @@ A Google Keep-inspired Android TODO app whose data lives in plain markdown files
 Current state: **Phase 6 complete** — lists are real markdown files, one per list, in a folder the
 user picks (app-private storage until they do); nested items expand and collapse, rows are lifted
 by the handle and dragged to reorder and re-nest, and items are typed inline (Enter for the next
-one, Tab to nest), deleted with an undo from the row's button (or by swiping, once that is switched
+one, Tab to nest, or the toolbar above the keyboard for the same two moves by thumb), deleted with
+an undo from the row's button (or by swiping, once that is switched
 on in settings), coloured per list, searched across lists, and hidden once finished. A whole list can also be
 pasted in at once from the list's menu, in whatever format it was copied from. Three
 Glance home-screen widgets show a list and tick it off (with a mic and a + in the corner for
@@ -24,7 +25,10 @@ These hold for every phase. Do not design around them.
    it. Anything the format cannot express (collapse state, per-list colour, "hide completed") is
    local UI state stored separately and never written into the file.
 4. **Item ids are stable** across reorder, re-nest and save/load, so Compose keys and drag state
-   survive edits.
+   survive edits. A parse mints new ids, so a reload that finds a file unchanged keeps the tree it
+   already had (`keepingIdentity`); only a file that really changed hands out new ones. Without
+   that, the widget redraw that follows any edit tore the row being typed into out from under the
+   user about a second later.
 5. **Ticked items read as done** — grayed out and struck through, never hidden by default.
 
 ## File format
@@ -112,6 +116,11 @@ adb shell uiautomator dump /sdcard/ui.xml    # then read bounds + content-desc f
 - **Slow animations down** to catch mid-transition frames:
   `adb shell settings put global animator_duration_scale 10` — Compose honours it. Put it back to
   `1` afterwards, along with anything else you changed (`cmd uimode night ...`).
+- **Wait out the widget debounce before declaring an edit healthy.** Any change redraws the
+  widgets about a second later and a redraw reloads the files, so a bug in that path looks like an
+  edit dying on its own a beat after a tap that appeared to work. Check the state ~3 seconds after
+  the action, not immediately — and read `adb logcat` for the order of events rather than guessing
+  from the end state.
 - **Prove a fix by reproducing the bug first**: `git stash`, rebuild, reproduce, `git stash pop`,
   rebuild, confirm it is gone. Three bugs were "fixed" and re-reported before this became habit.
 - The app may be pointed at a SAF folder rather than app-private storage — check
@@ -172,7 +181,8 @@ app/src/main/java/dev/shafqat/mytodo/
     navigation/MyTodoApp.kt  NavHost: lists → list/{listId} → search → settings
     lists/                   Keep-style grid of list cards
     todo/                    one list: flattened rows, checkboxes, inline editing, swipe-to-delete,
-                             TodoDragState (drag, depth, auto-scroll)
+                             TodoDragState (drag, depth, auto-scroll),
+                             ItemEditToolbar (indent/outdent above the keyboard)
     search/                  search across every list
     settings/                folder picker, storage state, swipe-to-delete toggle, about rows
     components/              shared composables (TextInputDialog, AddFromTextDialog,
@@ -303,6 +313,25 @@ app/src/test/java/dev/shafqat/mytodo/
 - **Tab and Shift-Tab are moves, not a depth field.** `indentItem` re-runs `moveSubtree` at the same
   index one level deeper and lets `allowedDepthRange` refuse what is illegal; `outdentItem` first
   walks past the siblings that followed it, so they keep their parent instead of being adopted.
+- **The edit toolbar is pinned above the keyboard, and it is drawn over the list.** `TodoItemList`
+  puts `ItemEditToolbar` in a `Box` with the rows and lifts it on `imePadding()`, so it sits
+  between the keyboard and the item wherever that item happens to be, and nothing reflows when an
+  edit starts. That inset arithmetic only works because `TodoListScreen` follows its
+  `padding(innerPadding)` with `consumeWindowInsets(innerPadding)`: the scaffold has already paid
+  the navigation bar, and without saying so the bar would pay it twice and float a stripe above
+  the keyboard. `TodoListScreen` also hides the "Add item" button while an edit is open — it would
+  otherwise sit on top of the bar — which is what `onEditingChanged` is for.
+- **A press on the toolbar must not end the edit**, since the editor treats a lost focus as the
+  end and an ended edit drops the keyboard and bins an item still blank. Plain `IconButton`s were
+  measured against that on a device — with a hardware keyboard in play, which is when a clickable
+  is focusable at all — and they keep the edit running, so there is nothing clever here to
+  preserve. The edits that *did* die a second after a press were the reload above minting new ids,
+  not the buttons; look there first if it comes back.
+- **What the toolbar offers is worked out by trying the move.** `canIndentItem` and
+  `canOutdentItem` apply `indentItem`/`outdentItem` and look at where the item landed, rather than
+  restating `allowedDepthRange`'s rules in the UI, so a greyed-out button always agrees with what
+  Tab would do. A button whose move is impossible is greyed out, never removed: the two must not
+  shift under the thumb as the edit moves from row to row.
 - **An item left empty is deleted when the edit ends.** Blank rows cannot be told apart on screen
   from rows the user meant to keep, and pressing Enter once too many is the usual way to get one.
   That is also what makes Enter-on-an-empty-item read as "I am done".

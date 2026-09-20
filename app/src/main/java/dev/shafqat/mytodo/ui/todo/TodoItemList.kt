@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -41,6 +42,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.TodoItem
+import dev.shafqat.mytodo.model.canIndentItem
+import dev.shafqat.mytodo.model.canOutdentItem
 import dev.shafqat.mytodo.model.flattenVisible
 import dev.shafqat.mytodo.model.moveSubtree
 import dev.shafqat.mytodo.model.updateItem
@@ -72,7 +75,9 @@ data class ItemEditActions(
  *
  * Which row is being edited — and where its caret starts — is state of this list rather than of the
  * screen: it has to survive a row moving, and it follows [focusItemId] so that a freshly created
- * item opens for typing without the screen having to reach down into the list.
+ * item opens for typing without the screen having to reach down into the list. [onEditingChanged]
+ * reports it back up anyway, for the screen's own furniture — the "Add item" button steps aside
+ * while the toolbar is up.
  */
 @Composable
 fun TodoItemList(
@@ -86,6 +91,7 @@ fun TodoItemList(
     swipeToDeleteEnabled: Boolean = false,
     focusItemId: String? = null,
     editActions: ItemEditActions = ItemEditActions(),
+    onEditingChanged: (itemId: String?) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     val dragState = rememberTodoDragState(listState)
@@ -94,6 +100,9 @@ fun TodoItemList(
     // end of the text, which is what a row opened any other way wants.
     var editingCaret by remember { mutableStateOf<Int?>(null) }
     val actions by rememberUpdatedState(editActions)
+    val reportEditing by rememberUpdatedState(onEditingChanged)
+
+    LaunchedEffect(editingItemId) { reportEditing(editingItemId) }
 
     // A new item arrives already open for typing, which is the whole point of Enter.
     LaunchedEffect(focusItemId) {
@@ -137,92 +146,119 @@ fun TodoItemList(
     }
     val rows = previewItems.flattenVisible()
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
-    ) {
-        itemsIndexed(rows, key = { _, row -> row.item.id }) { index, row ->
-            // pointerInput is keyed on the item id alone, so that reordering the list never cancels
-            // an in-flight drag. That also means its gesture block is not recreated when the row
-            // moves, so it must not capture the index and depth directly — it would keep whichever
-            // values the row had when it was first composed, and picking the row up later would
-            // fling it back there.
-            val currentIndex by rememberUpdatedState(index)
-            val currentDepth by rememberUpdatedState(row.depth)
-            val isEditing = row.item.id == editingItemId
-            val isFloating = row.item.id == dragState.floatingItemId
+    // The toolbar is drawn over the list rather than beside it, so the rows keep the whole screen
+    // and nothing reflows when an edit starts.
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
+        ) {
+            itemsIndexed(rows, key = { _, row -> row.item.id }) { index, row ->
+                // pointerInput is keyed on the item id alone, so that reordering the list
+                // never cancels an in-flight drag. That also means its gesture block is not
+                // recreated when the row moves, so it must not capture the index and depth
+                // directly — it would keep whichever values the row had when it was first
+                // composed, and picking the row up later would fling it back there.
+                val currentIndex by rememberUpdatedState(index)
+                val currentDepth by rememberUpdatedState(row.depth)
+                val isEditing = row.item.id == editingItemId
+                val isFloating = row.item.id == dragState.floatingItemId
 
-            SwipeToDelete(
-                modifier = when {
-                    // The dragged row is drawn lifted out of the list and offset onto the finger,
-                    // so it travels with it rather than hopping a whole slot at a time. The slot it
-                    // has been given underneath is the gap it would drop into.
-                    isFloating -> Modifier
-                        .zIndex(1f)
-                        .graphicsLayer {
-                            translationY = dragState.floatingOffsetFor(row.item.id)
-                        }
-                    // Everything else slides out of its way instead of teleporting.
-                    dragState.isDragging -> Modifier.animateItem()
-                    else -> Modifier
-                },
-                // Swiping a row that is mid-edit would be an accident, not an intention.
-                enabled = swipeToDeleteEnabled && !isEditing,
-                onDelete = { onDelete(row.item.id) },
-            ) {
-                TodoRow(
-                    item = row.item,
-                    depth = row.depth,
-                    isDragging = isFloating,
-                    isEditing = isEditing,
-                    onStartEdit = { caret ->
-                        editingItemId = row.item.id
-                        editingCaret = caret
+                SwipeToDelete(
+                    modifier = when {
+                        // The dragged row is drawn lifted out of the list and offset onto
+                        // the finger, so it travels with it rather than hopping a whole slot at
+                        // a time. The slot it has been given underneath is the gap it would
+                        // drop into.
+                        isFloating -> Modifier
+                            .zIndex(1f)
+                            .graphicsLayer {
+                                translationY = dragState.floatingOffsetFor(row.item.id)
+                            }
+                        // Everything else slides out of its way instead of teleporting.
+                        dragState.isDragging -> Modifier.animateItem()
+                        else -> Modifier
                     },
-                    initialCaret = editingCaret,
-                    showDragHandle = dragEnabled,
-                    editCallbacks = RowEditCallbacks(
-                        onTextChange = { text -> actions.onTextChange(row.item.id, text) },
-                        onSplit = {
-                            // Enter on an item still empty means "I am done adding", so it closes
-                            // the editor instead of spawning another empty row.
-                            if (row.item.text.isBlank()) {
-                                stopEditing(row.item.id)
-                            } else {
-                                actions.onSplit(row.item.id)
+                    // Swiping a row that is mid-edit would be an accident, not an intention.
+                    enabled = swipeToDeleteEnabled && !isEditing,
+                    onDelete = { onDelete(row.item.id) },
+                ) {
+                    TodoRow(
+                        item = row.item,
+                        depth = row.depth,
+                        isDragging = isFloating,
+                        isEditing = isEditing,
+                        onStartEdit = { caret ->
+                            editingItemId = row.item.id
+                            editingCaret = caret
+                        },
+                        initialCaret = editingCaret,
+                        showDragHandle = dragEnabled,
+                        editCallbacks = RowEditCallbacks(
+                            onTextChange = { text -> actions.onTextChange(row.item.id, text) },
+                            onSplit = {
+                                // Enter on an item still empty means "I am done adding",
+                                // so it closes the editor instead of spawning another empty
+                                // row.
+                                if (row.item.text.isBlank()) {
+                                    stopEditing(row.item.id)
+                                } else {
+                                    actions.onSplit(row.item.id)
+                                }
+                            },
+                            onIndent = { actions.onIndent(row.item.id) },
+                            onOutdent = { actions.onOutdent(row.item.id) },
+                            onDone = { stopEditing(row.item.id) },
+                        ),
+                        dragHandleModifier = if (!dragEnabled) {
+                            Modifier
+                        } else {
+                            Modifier.pointerInput(row.item.id) {
+                                // No long press: the handle exists to be dragged, so the drag
+                                // starts as soon as the finger moves past touch slop. The handle
+                                // consumes the gesture, which is what keeps the same movement
+                                // from scrolling the list or arming swipe-to-delete instead.
+                                detectDragGestures(
+                                    onDragStart = {
+                                        dragState.onDragStart(
+                                            row.item.id,
+                                            currentIndex,
+                                            currentDepth,
+                                        )
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragState.onDrag(amount.x, amount.y)
+                                    },
+                                    onDragEnd = { dragState.onDragEnd(onMove) },
+                                    onDragCancel = { dragState.onDragCancel() },
+                                )
                             }
                         },
-                        onIndent = { actions.onIndent(row.item.id) },
-                        onOutdent = { actions.onOutdent(row.item.id) },
-                        onDone = { stopEditing(row.item.id) },
-                    ),
-                    dragHandleModifier = if (!dragEnabled) {
-                        Modifier
-                    } else {
-                        Modifier.pointerInput(row.item.id) {
-                            // No long press: the handle exists to be dragged, so the drag
-                            // starts as soon as the finger moves past touch slop. The handle
-                            // consumes the gesture, which is what keeps the same movement
-                            // from scrolling the list or arming swipe-to-delete instead.
-                            detectDragGestures(
-                                onDragStart = {
-                                    dragState.onDragStart(row.item.id, currentIndex, currentDepth)
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    dragState.onDrag(amount.x, amount.y)
-                                },
-                                onDragEnd = { dragState.onDragEnd(onMove) },
-                                onDragCancel = { dragState.onDragCancel() },
-                            )
-                        }
-                    },
-                    onToggleDone = { done -> onToggleDone(row.item.id, done) },
-                    onToggleCollapsed = { collapsed -> onToggleCollapsed(row.item.id, collapsed) },
-                    onDelete = { onDelete(row.item.id) },
-                )
+                        onToggleDone = { done -> onToggleDone(row.item.id, done) },
+                        onToggleCollapsed = { collapsed ->
+                            onToggleCollapsed(row.item.id, collapsed)
+                        },
+                        onDelete = { onDelete(row.item.id) },
+                    )
+                }
             }
+        }
+
+        // Pinned to the bottom of the screen and lifted by the keyboard, so it sits between the
+        // two wherever the row being edited happens to be. Whether each move is possible is asked
+        // of the tree itself, so the buttons say the same thing Tab and Shift-Tab would do.
+        editingItemId?.let { editing ->
+            ItemEditToolbar(
+                canIndent = items.canIndentItem(editing),
+                canOutdent = items.canOutdentItem(editing),
+                onIndent = { actions.onIndent(editing) },
+                onOutdent = { actions.onOutdent(editing) },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .imePadding(),
+            )
         }
     }
 }

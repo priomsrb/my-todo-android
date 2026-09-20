@@ -1,6 +1,8 @@
 package dev.shafqat.mytodo
 
 import dev.shafqat.mytodo.model.TodoItem
+import dev.shafqat.mytodo.model.canIndentItem
+import dev.shafqat.mytodo.model.canOutdentItem
 import dev.shafqat.mytodo.model.flattenVisible
 import dev.shafqat.mytodo.model.indentItem
 import dev.shafqat.mytodo.model.insertSubtree
@@ -9,6 +11,8 @@ import dev.shafqat.mytodo.model.removeItem
 import dev.shafqat.mytodo.model.totalCount
 import dev.shafqat.mytodo.model.visibleRowOf
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -125,6 +129,41 @@ class OutlineEditTest {
     @Test
     fun `indent then outdent returns an item to where it started`() {
         assertEquals(tree.outline(), tree.indentItem("B").outdentItem("B").outline())
+    }
+
+    // --- what the toolbar may offer ---------------------------------------------------------
+
+    @Test
+    fun `an item with a sibling above it can be indented`() {
+        assertTrue(tree.canIndentItem("B"))
+        assertTrue(tree.canIndentItem("A2"))
+    }
+
+    @Test
+    fun `the first row cannot be indented, and neither can a first child`() {
+        assertFalse(tree.canIndentItem("A"))
+        assertFalse(tree.canIndentItem("A1"))
+    }
+
+    @Test
+    fun `an item cannot be indented into a collapsed sibling`() {
+        val collapsed = tree.map { if (it.id == "A") it.copy(collapsed = true) else it }
+
+        assertFalse(collapsed.canIndentItem("B"))
+    }
+
+    @Test
+    fun `only a nested item can be outdented`() {
+        assertTrue(tree.canOutdentItem("A1"))
+        assertTrue(tree.canOutdentItem("A1a"))
+        assertFalse(tree.canOutdentItem("A"))
+        assertFalse(tree.canOutdentItem("B"))
+    }
+
+    @Test
+    fun `an item that is not in the tree can do neither`() {
+        assertFalse(tree.canIndentItem("nope"))
+        assertFalse(tree.canOutdentItem("nope"))
     }
 
     // --- insert -----------------------------------------------------------------------------

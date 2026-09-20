@@ -1,9 +1,15 @@
 package dev.shafqat.mytodo.ui.todo
 
 import android.app.Application
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -81,6 +87,9 @@ fun TodoListScreen(
     val renamedListId by viewModel.renamedListId.collectAsStateWithLifecycle()
     val swipeToDeleteEnabled by viewModel.swipeToDeleteEnabled.collectAsStateWithLifecycle()
 
+    // Which row the list has open for typing, mirrored up here only so the "Add item" button can
+    // step out of the toolbar's way. The list remains the one that decides.
+    var editingItemId by remember { mutableStateOf<String?>(null) }
     var showColorPicker by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showAddFromTextDialog by remember { mutableStateOf(false) }
@@ -180,13 +189,21 @@ fun TodoListScreen(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = viewModel::addItem,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.new_item)) },
-            )
+            // Gone while an item is being edited: it would sit on top of the edit toolbar, and
+            // Enter already starts the next item, which is what it would have been reached for.
+            AnimatedVisibility(
+                visible = editingItemId == null,
+                enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                exit = fadeOut() + scaleOut(targetScale = 0.8f),
+            ) {
+                ExtendedFloatingActionButton(
+                    onClick = viewModel::addItem,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text(stringResource(R.string.new_item)) },
+                )
+            }
         },
     ) { innerPadding ->
         val allItems = list?.items.orEmpty()
@@ -196,7 +213,10 @@ fun TodoListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(tint)
-                .padding(innerPadding),
+                .padding(innerPadding)
+                // The padding above is the system bars'; saying so is what lets the edit toolbar
+                // inside ask for the keyboard inset without counting the navigation bar twice.
+                .consumeWindowInsets(innerPadding),
         ) {
             when {
                 allItems.isEmpty() -> EmptyState(
@@ -232,6 +252,7 @@ fun TodoListScreen(
                         onOutdent = viewModel::outdent,
                         onEditFinished = viewModel::finishEditing,
                     ),
+                    onEditingChanged = { editingItemId = it },
                 )
             }
         }

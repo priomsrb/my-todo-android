@@ -144,6 +144,24 @@ fun List<TodoItem>.outdentItem(itemId: String): List<TodoItem> {
 }
 
 /**
+ * Whether [indentItem] would actually nest the item any deeper.
+ *
+ * Answered by working the move out and looking at where it landed, rather than by restating the
+ * rules [allowedDepthRange] already holds: the toolbar button that greys itself out on the answer
+ * then cannot drift away from what Tab does.
+ */
+fun List<TodoItem>.canIndentItem(itemId: String): Boolean {
+    val depth = visibleRowOf(itemId)?.depth ?: return false
+    return indentItem(itemId).visibleRowOf(itemId)?.depth == depth + 1
+}
+
+/** Whether [outdentItem] would actually lift the item out of its parent. */
+fun List<TodoItem>.canOutdentItem(itemId: String): Boolean {
+    val depth = visibleRowOf(itemId)?.depth ?: return false
+    return outdentItem(itemId).visibleRowOf(itemId)?.depth == depth - 1
+}
+
+/**
  * Where [itemId] currently sits among the visible rows — the drag's starting index, and the index
  * that puts it back exactly where it was.
  */
