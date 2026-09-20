@@ -248,6 +248,7 @@ fun TodoListScreen(
                     editActions = ItemEditActions(
                         onTextChange = viewModel::setText,
                         onSplit = viewModel::addItemAfter,
+                        onSplitAbove = viewModel::addItemBefore,
                         onIndent = viewModel::indent,
                         onOutdent = viewModel::outdent,
                         onEditFinished = viewModel::finishEditing,

@@ -124,6 +124,16 @@ class TodoListViewModel(
     }
 
     /**
+     * Enter with the caret at the start: a new item on the row above [beforeItemId], open for
+     * typing. The item it went above is left alone, text and children both.
+     */
+    fun addItemBefore(beforeItemId: String) {
+        viewModelScope.launch {
+            _focusItemId.value = repository.addItemBefore(listId, beforeItemId).id
+        }
+    }
+
+    /**
      * "Add from text": a pasted list, parsed and added in one go.
      *
      * The position is passed in as well as remembered, because the dialog is where the choice was

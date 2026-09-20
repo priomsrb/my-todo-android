@@ -5,7 +5,8 @@ A Google Keep-inspired Android TODO app whose data lives in plain markdown files
 Current state: **Phase 6 complete** — lists are real markdown files, one per list, in a folder the
 user picks (app-private storage until they do); nested items expand and collapse, rows are lifted
 by the handle and dragged to reorder and re-nest, and items are typed inline (Enter for the next
-one, Tab to nest, or the toolbar above the keyboard for the same two moves by thumb), deleted with
+one — or, with the caret still at the start, one above — Tab to nest, or the toolbar above the
+keyboard for the same two moves by thumb), deleted with
 an undo from the row's button (or by swiping, once that is switched
 on in settings), coloured per list, searched across lists, and hidden once finished. A whole list can also be
 pasted in at once from the list's menu, in whatever format it was copied from. Three
@@ -310,6 +311,12 @@ app/src/test/java/dev/shafqat/mytodo/
   edited row's index plus one, at its depth; when the item has children showing, that position *is*
   its first child, which is what an outliner does anyway. It falls out of the move coordinates
   rather than being a second code path.
+- **Where Enter puts the new item is read off the caret.** With nothing of the item in front of the
+  caret there is nothing to carry on below it, so Enter at offset 0 inserts *above* instead:
+  `addItemBefore`, the same insert at the row's own index and depth, so the item it lands above
+  keeps its text, its place and its children. A selection is not a caret at the start even when it
+  begins at one — it is a range the next keystroke would replace — so only a collapsed caret counts.
+  The editor moves to the new row either way: the row you are typing into is always the new one.
 - **Tab and Shift-Tab are moves, not a depth field.** `indentItem` re-runs `moveSubtree` at the same
   index one level deeper and lets `allowedDepthRange` refuse what is illegal; `outdentItem` first
   walks past the siblings that followed it, so they keep their parent instead of being adopted.
@@ -334,7 +341,11 @@ app/src/test/java/dev/shafqat/mytodo/
   shift under the thumb as the edit moves from row to row.
 - **An item left empty is deleted when the edit ends.** Blank rows cannot be told apart on screen
   from rows the user meant to keep, and pressing Enter once too many is the usual way to get one.
-  That is also what makes Enter-on-an-empty-item read as "I am done".
+  This is also what keeps Enter-at-the-start honest on an item that is still empty: the caret is at
+  offset 0, so a blank row is inserted above and the abandoned one below it is tidied away as the
+  edit moves on — the screen does not change, and blank rows cannot stack up. `TodoItemList` ends
+  that edit itself rather than waiting for the field to lose focus, so the two happen in order.
+  An entry run is closed with Back (or by leaving the app), not by a second Enter.
 - **A new editor must not end itself.** A field reports "not focused" once before it is given focus;
   `ItemEditor` ignores that first report, or every freshly created item would be deleted the
   instant it appeared.

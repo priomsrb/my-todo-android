@@ -265,6 +265,17 @@ class MarkdownTodoRepository(
         return item
     }
 
+    override suspend fun addItemBefore(listId: String, beforeItemId: String, text: String): TodoItem {
+        val item = TodoItem(text = text)
+        mutate(listId) { items ->
+            val row = items.visibleRowOf(beforeItemId)
+            // Its own row index at its own depth: the new item takes the slot, and the item that
+            // was there — with everything under it — moves down one.
+            if (row == null) listOf(item) + items else items.insertSubtree(item, row.index, row.depth)
+        }
+        return item
+    }
+
     override suspend fun addItems(listId: String, items: List<TodoItem>, atTop: Boolean) {
         if (items.isEmpty()) return
         // Top-level rows either side of what is there already, so this needs no row coordinates:

@@ -133,6 +133,18 @@ class TodoItemEditingUiTest {
                         }
                         focusItemId = item.id
                     },
+                    onSplitAbove = { id ->
+                        // And on the row above it, at the same depth: the item that was there
+                        // moves down, children and all.
+                        val item = TodoItem(text = "")
+                        val row = items.visibleRowOf(id)
+                        items = if (row == null) {
+                            listOf(item) + items
+                        } else {
+                            items.insertSubtree(item, row.index, row.depth)
+                        }
+                        focusItemId = item.id
+                    },
                     onIndent = { id -> items = items.indentItem(id) },
                     onOutdent = { id -> items = items.outdentItem(id) },
                     onEditFinished = { id ->
@@ -151,6 +163,12 @@ class TodoItemEditingUiTest {
 
     private fun startEditing(text: String) {
         composeRule.onNodeWithText(text).performClick()
+        composeRule.waitForIdle()
+    }
+
+    /** Opens an item with the caret before its first character, as tapping its left edge does. */
+    private fun startEditingAtStart(text: String) {
+        composeRule.onNodeWithText(text).performTouchInput { click(Offset(1f, centerY)) }
         composeRule.waitForIdle()
     }
 
@@ -226,19 +244,62 @@ class TodoItemEditingUiTest {
     }
 
     @Test
-    fun `Enter on an item left empty closes the editor and throws the empty item away`() {
+    fun `Enter with the caret at the start starts a new item on the row above`() {
+        composeRule.setContent { Harness() }
+        startEditingAtStart("Bravo")
+
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "", "Bravo", "Charlie"), renderedOrder)
+
+        // The editor moved up to the new row, and the item it came from is untouched.
+        editor().performTextInput("New")
+        composeRule.waitForIdle()
+        assertEquals(listOf("Alpha", "New", "Bravo", "Charlie"), renderedOrder)
+    }
+
+    @Test
+    fun `the new item above a parent is its sibling, and the children stay put`() {
+        val nested = listOf(
+            TodoItem(
+                id = "alpha", text = "Alpha",
+                children = listOf(TodoItem(id = "alpha1", text = "Alpha 1")),
+            ),
+            TodoItem(id = "bravo", text = "Bravo"),
+        )
+        composeRule.setContent { Harness(nested) }
+        startEditingAtStart("Alpha")
+
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        assertEquals(
+            listOf("" to 0, "Alpha" to 0, "Alpha 1" to 1, "Bravo" to 0),
+            renderedRows,
+        )
+    }
+
+    @Test
+    fun `Enter on an item still empty starts another above it, since that is where its caret is`() {
         composeRule.setContent { Harness() }
         startEditing("Alpha")
         editor().performKeyInput { pressKey(Key.Enter) }
         composeRule.waitForIdle()
 
-        // A second Enter, with nothing typed into the new row.
+        // A second Enter, with nothing typed into the new row. The blank row it was on is the
+        // row it goes above, so the list looks the same and the editor stays open.
         editor().performKeyInput { pressKey(Key.Enter) }
         composeRule.waitForIdle()
 
-        assertEquals(listOf("Alpha", "Bravo", "Charlie"), renderedOrder)
+        assertEquals(listOf("Alpha", "", "Bravo", "Charlie"), renderedOrder)
+        // The row that was left behind blank is tidied away, not stacked up.
         assertEquals(1, deleted.size)
-        composeRule.onNodeWithTag(ItemEditorTag).assertDoesNotExist()
+        editor().assertIsDisplayed()
+
+        editor().performTextInput("New")
+        composeRule.waitForIdle()
+        assertEquals(listOf("Alpha", "New", "Bravo", "Charlie"), renderedOrder)
     }
 
     @Test
@@ -326,10 +387,10 @@ class TodoItemEditingUiTest {
         startEditing("Bravo")
         composeRule.onNodeWithTag(EditToolbarTag).assertIsDisplayed()
 
-        // Enter on the new, still-empty row is how an entry run ends.
-        editor().performKeyInput { pressKey(Key.Enter) }
-        composeRule.waitForIdle()
-        editor().performKeyInput { pressKey(Key.Enter) }
+        // Leaving the app is one of the ways an edit ends; the toolbar goes with it.
+        composeRule.runOnUiThread {
+            lifecycleOwner.registry.currentState = Lifecycle.State.CREATED
+        }
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag(EditToolbarTag).assertDoesNotExist()

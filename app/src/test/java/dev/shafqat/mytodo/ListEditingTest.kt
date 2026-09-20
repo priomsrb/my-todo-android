@@ -107,6 +107,47 @@ class ListEditingTest {
         assertEquals("A\n  A1\n  A1b\n  A2\nB\nC", repository.outline())
     }
 
+    @Test
+    fun `a new item lands on the row above the one being edited`() = runTest {
+        val repository = loaded()
+
+        repository.addItemBefore("list.md", repository.idOf("B"), "A3")
+        advanceUntilIdle()
+
+        assertEquals("A\n  A1\n  A2\nA3\nB\nC", repository.outline())
+        assertEquals("- [ ] A\n\t- [ ] A1\n\t- [ ] A2\n- [ ] A3\n- [ ] B\n- [X] C\n", read())
+    }
+
+    @Test
+    fun `a new item above a parent is its sibling, and the children stay with it`() = runTest {
+        val repository = loaded()
+
+        repository.addItemBefore("list.md", repository.idOf("A"), "A-")
+        advanceUntilIdle()
+
+        assertEquals("A-\nA\n  A1\n  A2\nB\nC", repository.outline())
+    }
+
+    @Test
+    fun `a new item above a nested one stays at that depth`() = runTest {
+        val repository = loaded()
+
+        repository.addItemBefore("list.md", repository.idOf("A2"), "A1b")
+        advanceUntilIdle()
+
+        assertEquals("A\n  A1\n  A1b\n  A2\nB\nC", repository.outline())
+    }
+
+    @Test
+    fun `a new item above the first child stays inside its parent`() = runTest {
+        val repository = loaded()
+
+        repository.addItemBefore("list.md", repository.idOf("A1"), "A0")
+        advanceUntilIdle()
+
+        assertEquals("A\n  A0\n  A1\n  A2\nB\nC", repository.outline())
+    }
+
     // --- indent and outdent -----------------------------------------------------------------
 
     @Test

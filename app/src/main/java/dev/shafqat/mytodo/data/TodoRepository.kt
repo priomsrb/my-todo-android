@@ -46,6 +46,13 @@ interface TodoRepository {
     suspend fun addItemAfter(listId: String, afterItemId: String, text: String = ""): TodoItem
 
     /**
+     * Adds [text] on the row straight before [beforeItemId], at the same depth — what pressing
+     * Enter with the caret at the start of an item does. The item it lands above keeps its
+     * children: the new row is its sibling, not its parent.
+     */
+    suspend fun addItemBefore(listId: String, beforeItemId: String, text: String = ""): TodoItem
+
+    /**
      * Adds whole subtrees as top-level rows, at the top of the list when [atTop] or after
      * everything already there otherwise. Used by "Add from text", where one paste is many items.
      */

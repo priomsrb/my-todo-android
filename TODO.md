@@ -219,6 +219,22 @@ Worth knowing before Phase 6:
       keyboard attached included (10/10 rounds); the edits that died a second after a press were
       the reload above, not the buttons
 
+## Phase 6d — Enter at the start of an item ✅
+
+- [x] Enter with the caret before an item's first character starts the new item *above* it instead
+      of below: there is nothing of the item in front of the caret to carry on with, so the row
+      being asked for is the one above. `addItemBefore` is the same insert as `addItemAfter`, at
+      the row's own index and depth, so the item it lands above keeps its text, its place and its
+      children. The editor moves to the new row either way
+- [x] Only a collapsed caret counts: a selection that begins at the first character is a range the
+      next keystroke would replace, not a caret at the start, and Enter still adds below
+- [x] This supersedes the Phase 4 "Enter on a still-empty item closes the editor": such an item has
+      its caret at offset 0, so Enter now inserts above and the blank row left behind is tidied
+      away as the edit moves on — the screen does not change, and blank rows cannot stack up. Back
+      (or leaving the app) is what closes an entry run
+- [x] Checked on the emulator: on a nested item, the new row lands above it at its own depth and
+      typing goes into the new row; with the caret mid-text the new row still lands below
+
 ## Phase 7 — Robustness and extras
 
 - [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers

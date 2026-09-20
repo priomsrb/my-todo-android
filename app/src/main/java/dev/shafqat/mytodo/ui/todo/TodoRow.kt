@@ -91,8 +91,10 @@ const val ItemEditorTag = "item-editor"
  */
 data class RowEditCallbacks(
     val onTextChange: (String) -> Unit = {},
-    /** Enter: finish this item and start the next one. */
+    /** Enter with the caret anywhere past the start: finish this item and start the next one. */
     val onSplit: () -> Unit = {},
+    /** Enter with the caret on the first character: start an item on the row above this one. */
+    val onSplitAbove: () -> Unit = {},
     /** Tab. */
     val onIndent: () -> Unit = {},
     /** Shift-Tab. */
@@ -113,8 +115,8 @@ data class RowEditCallbacks(
  * The handle is only drawn when reordering is actually available.
  *
  * Tapping the text turns it into a field in place, with the caret on the character that was
- * tapped. That editor is where fast entry lives: Enter starts the next item, Tab and Shift-Tab
- * re-nest this one.
+ * tapped. That editor is where fast entry lives: Enter starts the next item — or, with the caret
+ * still before the first character, one above this one — and Tab and Shift-Tab re-nest it.
  */
 @Composable
 fun TodoRow(
@@ -284,8 +286,9 @@ private fun caretOffsetAt(layout: TextLayoutResult?, touch: Offset?, textTop: Fl
  *
  * Its own state is the source of truth for what is on screen; every keystroke is also reported
  * upward, where the repository's debounce turns a burst of typing into one write. Keys are handled
- * on the *preview* pass so Tab moves the item rather than the focus, and Enter starts the next item
- * rather than inserting a newline.
+ * on the *preview* pass so Tab moves the item rather than the focus, and Enter starts another item
+ * rather than inserting a newline — the row after this one, or the row above it when the caret has
+ * nothing of this item in front of it.
  *
  * A separate composable so that its state — including where the caret sits — is created fresh when
  * an edit begins and thrown away when it ends.
@@ -322,6 +325,14 @@ private fun ItemEditor(
         focusRequester.requestFocus()
     }
 
+    // Where the new item goes is read off the caret: nothing of this item is before it, so the row
+    // the user is asking for is the one above rather than the one below. A selection is not a
+    // caret at the start even when it begins there — it is a range the next keystroke replaces.
+    fun onEnter() {
+        val selection = value.selection
+        if (selection.collapsed && selection.start == 0) current.onSplitAbove() else current.onSplit()
+    }
+
     BasicTextField(
         value = value,
         onValueChange = { newValue ->
@@ -344,7 +355,7 @@ private fun ItemEditor(
         // strip that scrolls sideways, and the row — and everything below it — would jump.
         singleLine = false,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-        keyboardActions = KeyboardActions(onNext = { current.onSplit() }),
+        keyboardActions = KeyboardActions(onNext = { onEnter() }),
         modifier = modifier
             .testTag(ItemEditorTag)
             .padding(vertical = TextVerticalPadding)
@@ -364,7 +375,7 @@ private fun ItemEditor(
                         true
                     }
                     event.key == Key.Enter || event.key == Key.NumPadEnter -> {
-                        current.onSplit()
+                        onEnter()
                         true
                     }
                     else -> false
