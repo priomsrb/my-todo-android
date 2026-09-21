@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dev.shafqat.mytodo.model.CopyFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -64,9 +65,26 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { preferences -> preferences[ADD_FROM_TEXT_AT_TOP] = atTop }
     }
 
+    /**
+     * Which format "Copy list" puts on the clipboard.
+     *
+     * Ships as [CopyFormat.Checkboxes] — the app's own markdown, which is the only format a copy
+     * can be pasted straight back in from without losing what was ticked. Somebody who copies
+     * lists to send to other people rather than to move them around says so once, here, rather
+     * than in a dialog every time. Deduplicated for the same reason as [todoFolderUri].
+     */
+    val copyFormat: Flow<CopyFormat> = context.dataStore.data
+        .map { CopyFormat.fromName(it[COPY_FORMAT]) }
+        .distinctUntilChanged()
+
+    suspend fun setCopyFormat(format: CopyFormat) {
+        context.dataStore.edit { preferences -> preferences[COPY_FORMAT] = format.name }
+    }
+
     private companion object {
         val TODO_FOLDER_URI = stringPreferencesKey("todo_folder_uri")
         val SWIPE_TO_DELETE = booleanPreferencesKey("swipe_to_delete")
         val ADD_FROM_TEXT_AT_TOP = booleanPreferencesKey("add_from_text_at_top")
+        val COPY_FORMAT = stringPreferencesKey("copy_format")
     }
 }

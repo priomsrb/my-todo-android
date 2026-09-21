@@ -25,6 +25,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +37,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.data.StorageState
+import dev.shafqat.mytodo.model.CopyFormat
+import dev.shafqat.mytodo.ui.components.CopyFormatDialog
 
 /** Settings: where the markdown files live, and whether the app can currently reach them. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +50,8 @@ fun SettingsScreen(
     val storageState by viewModel.storageState.collectAsStateWithLifecycle()
     val folderUri by viewModel.folderUri.collectAsStateWithLifecycle()
     val swipeToDeleteEnabled by viewModel.swipeToDeleteEnabled.collectAsStateWithLifecycle()
+    val copyFormat by viewModel.copyFormat.collectAsStateWithLifecycle()
+    var showCopyFormatDialog by remember { mutableStateOf(false) }
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -108,6 +115,12 @@ fun SettingsScreen(
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             SettingRow(
+                title = stringResource(R.string.copy_format),
+                subtitle = copyFormatSummary(copyFormat),
+                onClick = { showCopyFormatDialog = true },
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            SettingRow(
                 title = stringResource(R.string.file_format),
                 subtitle = stringResource(R.string.file_format_summary),
             )
@@ -118,6 +131,21 @@ fun SettingsScreen(
             )
         }
     }
+
+    if (showCopyFormatDialog) {
+        CopyFormatDialog(
+            selected = copyFormat,
+            onSelect = viewModel::setCopyFormat,
+            onDismiss = { showCopyFormatDialog = false },
+        )
+    }
+}
+
+/** The chosen format's name and a glimpse of its syntax, so the row says what a copy looks like. */
+@Composable
+private fun copyFormatSummary(format: CopyFormat): String = when (format) {
+    CopyFormat.Checkboxes -> stringResource(R.string.copy_format_checkboxes_short)
+    CopyFormat.Bullets -> stringResource(R.string.copy_format_bullets_short)
 }
 
 @Composable

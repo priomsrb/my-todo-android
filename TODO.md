@@ -235,6 +235,26 @@ Worth knowing before Phase 6:
 - [x] Checked on the emulator: on a nested item, the new row lands above it at its own depth and
       typing goes into the new row; with the caret mid-text the new row still lands below
 
+## Phase 6e — Copying a list out ✅
+
+- [x] "Copy list" in both menus — the open list's overflow menu, where it sits next to "Add from
+      text" as its inverse, and the long-press menu on a card in the grid, so a list can be copied
+      without opening it first
+- [x] `textFromItems` writes the tree back out with one tab per level. Deliberately not
+      `MarkdownSerializer`, for the same reason `itemsFromText` is not `MarkdownParser`: that one
+      writes the user's file and carries its unrecognised lines along, this one writes a fragment
+      for somewhere else
+- [x] Two formats, chosen once in settings rather than in a dialog every time: checkboxes (the
+      default, and the only one a copy pastes back in from with its ticks) or plain bullets for
+      sending to someone else. The round trip is asserted both ways in `TextExportTest`
+- [x] A copy is what is on screen — `visibleItems`, so a list hiding finished items copies as the
+      outstanding work it is being read as. Collapsed subtrees still copy in full, and a row still
+      being typed into is left out
+- [x] No snackbar on Android 13 and up: the system already says "Copied" in the same place, and two
+      confirmations stack
+- [x] Checked on the emulator by pasting back: both formats, the nesting, a blank parent keeping its
+      line so its child keeps its level, and a hidden completed item staying out of the copy
+
 ## Phase 7 — Robustness and extras
 
 - [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers

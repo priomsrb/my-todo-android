@@ -65,6 +65,15 @@
         <item quantity="one">%1$d item added</item>
         <item quantity="other">%1$d items added</item>
     </plurals>
+    <string name="copy_list">Copy list</string>
+    <string name="list_copied">List copied</string>
+    <string name="copy_format">Copy format</string>
+    <string name="copy_format_checkboxes">Checkboxes</string>
+    <string name="copy_format_checkboxes_summary">- [ ] and - [X], like the files. Pastes back in with its ticks.</string>
+    <string name="copy_format_bullets">Plain bullets</string>
+    <string name="copy_format_bullets_summary">Just - and the text, for sending to someone else.</string>
+    <string name="copy_format_checkboxes_short">Checkboxes · - [ ] / - [X]</string>
+    <string name="copy_format_bullets_short">Plain bullets · - item</string>
     <string name="search_title">Search</string>
     <string name="search_hint">Search all lists</string>
     <string name="search_prompt">Type to find an item in any of your lists.</string>

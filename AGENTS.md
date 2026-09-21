@@ -9,7 +9,8 @@ one — or, with the caret still at the start, one above — Tab to nest, or the
 keyboard for the same two moves by thumb), deleted with
 an undo from the row's button (or by swiping, once that is switched
 on in settings), coloured per list, searched across lists, and hidden once finished. A whole list can also be
-pasted in at once from the list's menu, in whatever format it was copied from. Three
+pasted in at once from the list's menu, in whatever format it was copied from, and copied back out
+to the clipboard from either menu. Three
 Glance home-screen widgets show a list and tick it off (with a mic and a + in the corner for
 adding one by voice or by typing), list every list and open one, or take a spoken item straight
 onto a list. See [TODO.md](TODO.md) for the roadmap.
@@ -152,6 +153,7 @@ app/src/main/java/dev/shafqat/mytodo/
     Search.kt                matching items across every list
     Dictation.kt             cutting a dictated sentence into the items it names
     TextImport.kt            reading pasted text — bullets, numbers, checkboxes — as items
+    TextExport.kt            writing items back out as text, for the clipboard
   data/
     TodoRepository.kt        interface the UI talks to
     MarkdownTodoRepository.kt  keeps the tree and the files in step; no Android APIs
@@ -163,7 +165,7 @@ app/src/main/java/dev/shafqat/mytodo/
       TodoFileStore.kt       the only seam that knows where files physically live
       LocalDirectoryStore.kt app-private default; also stands in for storage in tests
       SafDirectoryStore.kt   a folder the user picked, via a persisted tree URI
-    settings/                DataStore: SettingsRepository (folder URI, swipe-to-delete),
+    settings/                DataStore: SettingsRepository (folder URI, swipe-to-delete, copy format),
                              DataStoreCollapseStore (collapse state),
                              DataStoreListPrefsStore (per-list colour, hide-completed)
   widget/
@@ -185,9 +187,9 @@ app/src/main/java/dev/shafqat/mytodo/
                              TodoDragState (drag, depth, auto-scroll),
                              ItemEditToolbar (indent/outdent above the keyboard)
     search/                  search across every list
-    settings/                folder picker, storage state, swipe-to-delete toggle, about rows
+    settings/                folder picker, storage state, swipe-to-delete, copy format, about rows
     components/              shared composables (TextInputDialog, AddFromTextDialog,
-                             ColorPickerDialog, EmptyState)
+                             ColorPickerDialog, CopyFormatDialog, EmptyState, Clipboard)
     theme/                   Keep-ish palette, typography, note tints
 app/src/test/java/dev/shafqat/mytodo/
   TodoTreeTest.kt            tree helpers
@@ -207,6 +209,7 @@ app/src/test/java/dev/shafqat/mytodo/
   WidgetRowsTest.kt          widget rows, key round-trips and deep-link intents
   DictationTest.kt           where a dictated sentence is and is not cut into several items
   TextImportTest.kt          the formats a paste may arrive in, and the nesting it must not invent
+  TextExportTest.kt          what a copy puts on the clipboard, and its round trip back in
   VoiceCaptureTest.kt        a transcript reaching the file, and undo taking it back off
   NavigationTransitionUiTest.kt  Compose: taps during screen transitions
 ```
@@ -418,6 +421,32 @@ app/src/test/java/dev/shafqat/mytodo/
   renders a plain `AlertDialog` fine, but one containing an `OutlinedTextField` never goes idle and
   the test worker runs out of memory — with or without a focus request. The parser and the batch
   add/undo are unit tested; the dialog itself is checked on the emulator.
+
+## How copying a list out works
+
+- **`textFromItems` in `model/TextExport.kt` is the inverse of `itemsFromText`**, and is likewise
+  deliberately not the serializer it resembles. `MarkdownSerializer` writes the user's file and has
+  to carry the lines the app did not understand back out with it; this writes a fragment for
+  somewhere else entirely and carries nothing but the items.
+- **Two formats, one setting.** `CopyFormat.Checkboxes` (the default) writes the app's own
+  `- [ ]` / `- [X]` markdown, so a copy pastes back in through "Add from text" with its ticks
+  intact; `CopyFormat.Bullets` drops the checkbox syntax for somewhere it would only read as
+  clutter. The choice lives in the settings DataStore (`copyFormat`) rather than in a dialog on
+  every copy: it follows from what someone copies lists *for*, which does not change per list.
+  `TextExportTest` asserts the round trip in both formats, since anything the pair loses between
+  them is a list that comes home changed.
+- **A copy is what is on screen, not what is in the file.** It takes `TodoList.visibleItems`, so a
+  list set to hide finished items copies as the outstanding work it is being read as. Collapsed
+  subtrees still come along in full — collapse is about what fits on a screen, not about what the
+  list contains.
+- **A row still being typed into is left out**, the same judgement `finishEditing` makes when it
+  removes a blank row. A blank item that has children keeps its line anyway, because dropping it
+  would promote them a level.
+- **Nothing to copy hides the menu row.** An empty list, or one whose every item is filtered out,
+  offers no "Copy list" at all rather than one that silently does nothing.
+- **Android 13 and up says "Copied" itself**, over the bottom of the screen where a snackbar goes.
+  `ClipboardConfirmsItself` in `ui/components/Clipboard.kt` is what keeps the app from stacking a
+  second confirmation on top of the system's; below API 33 the app shows the snackbar.
 
 ## How the widgets work
 

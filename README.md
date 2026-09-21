@@ -5,6 +5,7 @@ This app behaves similar to Google Keep but has a few improvements:
 - It uses markdown as the file format
 - Add TODOs using voice (including multiple items at a time)
 - Paste a whole list in at once, in whatever format you copied it
+- Copy a whole list back out to the clipboard, as checkboxes or as plain bullets
 
 ## Installation
 

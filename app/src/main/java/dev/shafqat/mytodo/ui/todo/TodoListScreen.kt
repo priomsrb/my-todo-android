@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
@@ -46,9 +47,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModelProvider
@@ -59,11 +62,15 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.hasCompleted
+import dev.shafqat.mytodo.model.textFromItems
 import dev.shafqat.mytodo.ui.components.AddFromTextDialog
+import dev.shafqat.mytodo.ui.components.ClipboardConfirmsItself
 import dev.shafqat.mytodo.ui.components.ColorPickerDialog
 import dev.shafqat.mytodo.ui.components.EmptyState
 import dev.shafqat.mytodo.ui.components.TextInputDialog
+import dev.shafqat.mytodo.ui.components.copyToClipboard
 import dev.shafqat.mytodo.ui.theme.noteColors
+import kotlinx.coroutines.launch
 
 /** One list of TODOs, rendered as a flat lazy column of recursively-indented rows. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,6 +91,7 @@ fun TodoListScreen(
     val pendingUndo by viewModel.pendingUndo.collectAsStateWithLifecycle()
     val pendingAddUndo by viewModel.pendingAddUndo.collectAsStateWithLifecycle()
     val addFromTextAtTop by viewModel.addFromTextAtTop.collectAsStateWithLifecycle()
+    val copyFormat by viewModel.copyFormat.collectAsStateWithLifecycle()
     val renamedListId by viewModel.renamedListId.collectAsStateWithLifecycle()
     val swipeToDeleteEnabled by viewModel.swipeToDeleteEnabled.collectAsStateWithLifecycle()
 
@@ -94,6 +102,8 @@ fun TodoListScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var showAddFromTextDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val prefs = list?.prefs ?: ListPrefs.Default
     val palette = noteColors()
@@ -153,6 +163,20 @@ fun TodoListScreen(
         }
     }
 
+    // "Copy list": the rows as they are on screen, in the format chosen in settings. What is on
+    // screen and not what is in the file, so a list set to hide finished items copies as the
+    // outstanding work it is being read as.
+    val copiedMessage = stringResource(R.string.list_copied)
+    val copyList = {
+        val text = textFromItems(list?.visibleItems.orEmpty(), copyFormat)
+        if (text.isNotEmpty()) {
+            context.copyToClipboard(list?.name.orEmpty(), text)
+            if (!ClipboardConfirmsItself) {
+                scope.launch { snackbarHostState.showSnackbar(copiedMessage) }
+            }
+        }
+    }
+
     Scaffold(
         containerColor = tint,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -176,9 +200,13 @@ fun TodoListScreen(
                         expanded = menuExpanded,
                         hideCompleted = prefs.hideCompleted,
                         hasCompleted = list?.items?.hasCompleted() == true,
+                        // Nothing on screen is nothing to copy, and a menu row that does nothing
+                        // is worse than one that is not there.
+                        canCopy = list?.visibleItems?.isNotEmpty() == true,
                         onDismiss = { menuExpanded = false },
                         onRename = { showRenameDialog = true },
                         onAddFromText = { showAddFromTextDialog = true },
+                        onCopy = { copyList() },
                         onPickColor = { showColorPicker = true },
                         onToggleHideCompleted = { viewModel.setHideCompleted(!prefs.hideCompleted) },
                         onMoveCompletedToBottom = viewModel::moveCompletedToBottom,
@@ -298,9 +326,11 @@ private fun ListMenu(
     expanded: Boolean,
     hideCompleted: Boolean,
     hasCompleted: Boolean,
+    canCopy: Boolean,
     onDismiss: () -> Unit,
     onRename: () -> Unit,
     onAddFromText: () -> Unit,
+    onCopy: () -> Unit,
     onPickColor: () -> Unit,
     onToggleHideCompleted: () -> Unit,
     onMoveCompletedToBottom: () -> Unit,
@@ -314,6 +344,12 @@ private fun ListMenu(
         MenuRow(stringResource(R.string.add_from_text), Icons.Default.PlaylistAdd) {
             onDismiss()
             onAddFromText()
+        }
+        if (canCopy) {
+            MenuRow(stringResource(R.string.copy_list), Icons.Default.ContentCopy) {
+                onDismiss()
+                onCopy()
+            }
         }
         MenuRow(stringResource(R.string.list_color), Icons.Default.Palette) {
             onDismiss()

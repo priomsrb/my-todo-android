@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.NoteAdd
@@ -37,6 +38,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
@@ -47,11 +50,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -64,11 +69,15 @@ import dev.shafqat.mytodo.data.StorageState
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.doneCount
 import dev.shafqat.mytodo.model.flattenVisible
+import dev.shafqat.mytodo.model.textFromItems
 import dev.shafqat.mytodo.model.totalCount
+import dev.shafqat.mytodo.ui.components.ClipboardConfirmsItself
 import dev.shafqat.mytodo.ui.components.ColorPickerDialog
 import dev.shafqat.mytodo.ui.components.EmptyState
 import dev.shafqat.mytodo.ui.components.TextInputDialog
+import dev.shafqat.mytodo.ui.components.copyToClipboard
 import dev.shafqat.mytodo.ui.theme.noteColors
+import kotlinx.coroutines.launch
 
 /** Home screen: a Keep-style grid of note cards, one per TODO list. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,12 +90,31 @@ fun ListsScreen(
 ) {
     val lists by viewModel.lists.collectAsStateWithLifecycle()
     val storageState by viewModel.storageState.collectAsStateWithLifecycle()
+    val copyFormat by viewModel.copyFormat.collectAsStateWithLifecycle()
     var showNewListDialog by remember { mutableStateOf(false) }
     var listPendingRename by remember { mutableStateOf<TodoList?>(null) }
     var listPendingDelete by remember { mutableStateOf<TodoList?>(null) }
     var listPendingColor by remember { mutableStateOf<TodoList?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // Copying from here rather than from inside the list: the card already shows enough to know
+    // which list is wanted, and opening one only to copy it and come straight back is two taps
+    // spent on nothing.
+    val copiedMessage = stringResource(R.string.list_copied)
+    val copyList = { list: TodoList ->
+        val text = textFromItems(list.visibleItems, copyFormat)
+        if (text.isNotEmpty()) {
+            context.copyToClipboard(list.name, text)
+            if (!ClipboardConfirmsItself) {
+                scope.launch { snackbarHostState.showSnackbar(copiedMessage) }
+            }
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.lists_title)) },
@@ -150,6 +178,7 @@ fun ListsScreen(
                     tint = tint,
                     onClick = { onListClick(list.id) },
                     onRename = { listPendingRename = list },
+                    onCopy = { copyList(list) },
                     onPickColor = { listPendingColor = list },
                     onDelete = { listPendingDelete = list },
                 )
@@ -215,6 +244,7 @@ private fun ListCard(
     tint: Color,
     onClick: () -> Unit,
     onRename: () -> Unit,
+    onCopy: () -> Unit,
     onPickColor: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -240,6 +270,16 @@ private fun ListCard(
                     onRename()
                 },
             )
+            if (list.visibleItems.isNotEmpty()) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.copy_list)) },
+                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                    onClick = {
+                        menuExpanded = false
+                        onCopy()
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.list_color)) },
                 leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null) },

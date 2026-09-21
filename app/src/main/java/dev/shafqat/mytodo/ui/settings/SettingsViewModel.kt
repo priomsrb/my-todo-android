@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.shafqat.mytodo.data.StorageState
+import dev.shafqat.mytodo.model.CopyFormat
 import dev.shafqat.mytodo.todoApp
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setSwipeToDeleteEnabled(enabled: Boolean) {
         viewModelScope.launch { app.settings.setSwipeToDeleteEnabled(enabled) }
+    }
+
+    val copyFormat: StateFlow<CopyFormat> = app.settings.copyFormat
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CopyFormat.Default)
+
+    fun setCopyFormat(format: CopyFormat) {
+        viewModelScope.launch { app.settings.setCopyFormat(format) }
     }
 
     /**

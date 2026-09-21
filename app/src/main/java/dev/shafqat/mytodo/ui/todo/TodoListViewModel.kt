@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.shafqat.mytodo.data.TodoRepository
 import dev.shafqat.mytodo.data.settings.SettingsRepository
+import dev.shafqat.mytodo.model.CopyFormat
 import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.TodoList
@@ -72,6 +73,10 @@ class TodoListViewModel(
     /** The item that should open for typing, set whenever one is created. */
     private val _focusItemId = MutableStateFlow<String?>(null)
     val focusItemId: StateFlow<String?> = _focusItemId.asStateFlow()
+
+    /** Which format "Copy list" writes — a setting, markdown checkboxes until it is changed. */
+    val copyFormat: StateFlow<CopyFormat> = settings.copyFormat
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CopyFormat.Default)
 
     /** Where "Add from text" last put a paste, so the dialog opens on the same choice. */
     val addFromTextAtTop: StateFlow<Boolean> = settings.addFromTextAtTop
