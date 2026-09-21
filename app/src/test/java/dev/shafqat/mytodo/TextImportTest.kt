@@ -97,8 +97,45 @@ class TextImportTest {
     }
 
     @Test
-    fun `blank lines and rules are dropped`() {
-        assertEquals("Item 1\nItem 2", outline("- Item 1\n\n---\n\n- Item 2\n-\n"))
+    fun `a rule is dropped, but the blank lines around it are rows`() {
+        // Two gaps, since the rule between them names nothing and leaves them next to each other.
+        assertEquals("Item 1\n\n\nItem 2", outline("- Item 1\n\n---\n\n- Item 2\n"))
+    }
+
+    @Test
+    fun `a blank line between two items becomes a blank row`() {
+        assertEquals("Milk\n\nScrewdriver", outline("- Milk\n\n- Screwdriver"))
+    }
+
+    @Test
+    fun `a bullet with nothing written after it is a blank row too`() {
+        assertEquals("Milk\n\nScrewdriver", outline("- Milk\n-\n- Screwdriver"))
+    }
+
+    @Test
+    fun `blank lines at either end are dropped`() {
+        // Text that ends in a newline is most text, and a list does not open or close on a gap.
+        assertEquals("Milk\nEggs", outline("\n\n- Milk\n- Eggs\n\n"))
+    }
+
+    @Test
+    fun `a blank line takes the level of the group it introduces`() {
+        // Nobody types trailing tabs on a blank line, so the gap in a paste from somewhere else
+        // has no indent of its own; it belongs with what comes under it, not outside it.
+        assertEquals("Fruit\n  Apple\n  \n  Banana", outline("- Fruit\n  - Apple\n\n  - Banana"))
+    }
+
+    @Test
+    fun `a blank line's own whitespace is not a level`() {
+        // Trailing spaces on a blank line are leftovers, not indentation. The gap belongs to the
+        // group it introduces either way.
+        assertEquals("Fruit\n  Apple\n\nVeg", outline("- Fruit\n\t- Apple\n\t  \n- Veg"))
+    }
+
+    @Test
+    fun `a nested blank row is written with a marker, and keeps its level`() {
+        // How a copy says "this gap closes the group" — an empty line could not.
+        assertEquals("Fruit\n  Apple\n  \nVeg", outline("- Fruit\n\t- Apple\n\t- [ ]\n- Veg"))
     }
 
     @Test

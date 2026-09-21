@@ -27,7 +27,11 @@ object MarkdownSerializer {
             append("\t".repeat(depth))
             append("- [")
             append(if (item.done) "X" else " ")
-            append("] ")
+            append("]")
+            // A blank row — the gaps a list is grouped with — is a real item and gets a real line,
+            // but not a trailing space: the file is the user's, and an editor or a linter of theirs
+            // would only strip it back off again. The parser reads the marker on its own as empty.
+            if (item.text.isNotEmpty()) append(" ")
             appendLine(item.text)
 
             extraLines[item.id]?.forEach { appendLine(it) }

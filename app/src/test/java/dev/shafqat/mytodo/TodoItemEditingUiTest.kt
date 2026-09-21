@@ -19,6 +19,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -29,6 +30,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.withKeyDown
+import androidx.compose.ui.unit.height
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -60,7 +62,7 @@ import org.robolectric.annotation.Config
  * Inline entry and swipe-to-delete, driven through the real row list.
  *
  * The interesting part of this feature is the wiring — which row has the editor, what a key does to
- * the tree, when a still-empty item is thrown away — and none of that is visible to the pure model
+ * the tree, which row a blank one leaves behind — and none of that is visible to the pure model
  * tests. The harness stands in for the ViewModel, applying the same tree helpers it does — and it
  * turns swipe-to-delete on, since the setting behind it ships off.
  */
@@ -81,7 +83,7 @@ class TodoItemEditingUiTest {
     private var renderedRows: List<Pair<String, Int>> = emptyList()
     private val renderedOrder: List<String> get() = renderedRows.map { it.first }
 
-    /** Ids of every item that was deleted, in order — including the blank ones tidied away. */
+    /** Ids of every item that was deleted, in order. */
     private val deleted = mutableListOf<String>()
 
     /** The composition's input mode, so a test can put it in the mode a keyboard user is in. */
@@ -145,15 +147,23 @@ class TodoItemEditingUiTest {
                         }
                         focusItemId = item.id
                     },
-                    onIndent = { id -> items = items.indentItem(id) },
-                    onOutdent = { id -> items = items.outdentItem(id) },
-                    onEditFinished = { id ->
+                    onBackspaceOnEmpty = { id ->
+                        // What the ViewModel does: the row goes, unless it has children under it
+                        // or nothing above it, and the editor carries on at the end of the row
+                        // above.
                         val item = items.findItem(id)
-                        if (item != null && item.text.isBlank() && item.children.isEmpty()) {
+                        val rows = items.flattenVisible()
+                        val above = rows.getOrNull(rows.indexOfFirst { it.item.id == id } - 1)
+                        if (item != null && item.children.isEmpty() && above != null) {
                             deleted += id
                             items = items.removeItem(id)
+                            focusItemId = above.item.id
                         }
                     },
+                    onIndent = { id -> items = items.indentItem(id) },
+                    onOutdent = { id -> items = items.outdentItem(id) },
+                    // What the ViewModel does: the row is left exactly as it is, blank or not.
+                    onEditFinished = { },
                 ),
                 modifier = Modifier.fillMaxSize(),
             )
@@ -281,25 +291,160 @@ class TodoItemEditingUiTest {
     }
 
     @Test
-    fun `Enter on an item still empty starts another above it, since that is where its caret is`() {
+    fun `Enter on an item still empty adds a line under it and keeps the blank one`() {
         composeRule.setContent { Harness() }
         startEditing("Alpha")
         editor().performKeyInput { pressKey(Key.Enter) }
         composeRule.waitForIdle()
 
-        // A second Enter, with nothing typed into the new row. The blank row it was on is the
-        // row it goes above, so the list looks the same and the editor stays open.
+        // A second Enter, with nothing typed into the new row. The blank row stays — it is the
+        // gap the user is putting between two groups — and another row opens below it.
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "", "", "Bravo", "Charlie"), renderedOrder)
+        assertEquals(emptyList<String>(), deleted)
+        editor().assertIsDisplayed()
+
+        // The editor is on the lower of the two, so the gap is left above what comes next.
+        editor().performTextInput("New")
+        composeRule.waitForIdle()
+        assertEquals(listOf("Alpha", "", "New", "Bravo", "Charlie"), renderedOrder)
+    }
+
+    @Test
+    fun `Enter on a blank row keeps stacking gaps rather than ending the edit`() {
+        composeRule.setContent { Harness() }
+        startEditing("Alpha")
+
+        repeat(3) {
+            editor().performKeyInput { pressKey(Key.Enter) }
+            composeRule.waitForIdle()
+        }
+
+        assertEquals(listOf("Alpha", "", "", "", "Bravo", "Charlie"), renderedOrder)
+        editor().assertIsDisplayed()
+    }
+
+    @Test
+    fun `Enter at the start of an item that has text still inserts above it`() {
+        composeRule.setContent { Harness() }
+        startEditingAtStart("Bravo")
+
+        // The blank-item rule reads the text, not just the caret: this item has something to
+        // carry on below the new row, so the new row goes above it.
         editor().performKeyInput { pressKey(Key.Enter) }
         composeRule.waitForIdle()
 
         assertEquals(listOf("Alpha", "", "Bravo", "Charlie"), renderedOrder)
-        // The row that was left behind blank is tidied away, not stacked up.
-        assertEquals(1, deleted.size)
-        editor().assertIsDisplayed()
+    }
 
-        editor().performTextInput("New")
+    @Test
+    fun `a blank row is a row like any other - as tall as one, and tappable into`() {
+        val withGap = listOf(
+            TodoItem(id = "alpha", text = "Alpha"),
+            TodoItem(id = "gap", text = ""),
+            TodoItem(id = "bravo", text = "Bravo"),
+        )
+        composeRule.setContent { Harness(withGap) }
+
+        // Nothing is drawn in it, so the only thing giving it a tap target is the height of the
+        // empty line itself. A gap the user cannot get the caret back into is a gap they cannot
+        // undo by typing, and one they cannot see coming.
+        val alpha = composeRule.onNodeWithText("Alpha").getBoundsInRoot()
+        val gap = composeRule.onNodeWithText("").getBoundsInRoot()
+        assertEquals(alpha.height, gap.height)
+
+        composeRule.onNodeWithText("").performClick()
         composeRule.waitForIdle()
-        assertEquals(listOf("Alpha", "New", "Bravo", "Charlie"), renderedOrder)
+
+        editor().performTextInput("Typed")
+        composeRule.waitForIdle()
+        assertEquals(listOf("Alpha", "Typed", "Bravo"), renderedOrder)
+    }
+
+    @Test
+    fun `Backspace on an empty item takes the row off and carries on above it`() {
+        composeRule.setContent { Harness() }
+        startEditing("Alpha")
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+        assertEquals(listOf("Alpha", "", "Bravo", "Charlie"), renderedOrder)
+
+        editor().performKeyInput { pressKey(Key.Backspace) }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), renderedOrder)
+        // The caret is at the end of the row above, so typing carries on where it left off.
+        editor().performTextInput("!")
+        composeRule.waitForIdle()
+        assertEquals(listOf("Alpha!", "Bravo", "Charlie"), renderedOrder)
+    }
+
+    @Test
+    fun `Backspace walks back up through a run of blank rows`() {
+        composeRule.setContent { Harness() }
+        startEditing("Alpha")
+        repeat(3) {
+            editor().performKeyInput { pressKey(Key.Enter) }
+            composeRule.waitForIdle()
+        }
+        assertEquals(6, renderedRows.size)
+
+        repeat(3) {
+            editor().performKeyInput { pressKey(Key.Backspace) }
+            composeRule.waitForIdle()
+        }
+
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), renderedOrder)
+        editor().assertIsDisplayed()
+    }
+
+    @Test
+    fun `Backspace on an item with text deletes a character, not the row`() {
+        composeRule.setContent { Harness() }
+        startEditing("Bravo")
+
+        editor().performKeyInput { pressKey(Key.Backspace) }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "Brav", "Charlie"), renderedOrder)
+        assertEquals(emptyList<String>(), deleted)
+    }
+
+    @Test
+    fun `Backspace on the first row of the list does nothing`() {
+        val leadingGap = listOf(TodoItem(id = "gap", text = ""), TodoItem(id = "alpha", text = "Alpha"))
+        composeRule.setContent { Harness(leadingGap) }
+        composeRule.onNodeWithText("").performClick()
+        composeRule.waitForIdle()
+
+        // There is no row above to carry the caret to, so the keyboard stays where it is rather
+        // than the row vanishing under it.
+        editor().performKeyInput { pressKey(Key.Backspace) }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("", "Alpha"), renderedOrder)
+        assertEquals(emptyList<String>(), deleted)
+        editor().assertIsDisplayed()
+    }
+
+    @Test
+    fun `Backspace leaves an empty item that has children alone`() {
+        val blankParent = listOf(
+            TodoItem(id = "alpha", text = "Alpha"),
+            TodoItem(id = "gap", text = "", children = listOf(TodoItem(id = "sub", text = "Sub"))),
+        )
+        composeRule.setContent { Harness(blankParent) }
+        composeRule.onNodeWithText("").performClick()
+        composeRule.waitForIdle()
+
+        // Taking the row would take the subtree with it, which is not what a keystroke should do.
+        editor().performKeyInput { pressKey(Key.Backspace) }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha" to 0, "" to 0, "Sub" to 1), renderedRows)
+        assertEquals(emptyList<String>(), deleted)
     }
 
     @Test
@@ -340,12 +485,12 @@ class TodoItemEditingUiTest {
     }
 
     /**
-     * Found in the wild: an item typed into and then abandoned by switching away from the app stayed
-     * behind as a blank row, and was saved to the markdown file as one. Nothing tells a text field
-     * it lost focus when the whole screen goes away.
+     * Nothing tells a text field it lost focus when the whole screen goes away, so without the
+     * lifecycle observer the row stays in edit mode — and a row mid-edit is one that cannot be
+     * swiped away. The blank row itself is kept now, like every other blank row.
      */
     @Test
-    fun `leaving the app ends the edit, so an unfinished item is not left behind`() {
+    fun `leaving the app ends the edit and keeps the blank row it was on`() {
         composeRule.setContent { Harness() }
         startEditing("Alpha")
         editor().performKeyInput { pressKey(Key.Enter) }
@@ -357,8 +502,9 @@ class TodoItemEditingUiTest {
         }
         composeRule.waitForIdle()
 
-        assertEquals(listOf("Alpha", "Bravo", "Charlie"), renderedOrder)
-        assertEquals(1, deleted.size)
+        editor().assertDoesNotExist()
+        assertEquals(listOf("Alpha", "", "Bravo", "Charlie"), renderedOrder)
+        assertEquals(emptyList<String>(), deleted)
     }
 
     @Test

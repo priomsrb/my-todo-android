@@ -95,6 +95,8 @@ data class RowEditCallbacks(
     val onSplit: () -> Unit = {},
     /** Enter with the caret on the first character: start an item on the row above this one. */
     val onSplitAbove: () -> Unit = {},
+    /** Backspace on an item with nothing in it: take the row away and carry on above it. */
+    val onBackspaceOnEmpty: () -> Unit = {},
     /** Tab. */
     val onIndent: () -> Unit = {},
     /** Shift-Tab. */
@@ -116,7 +118,12 @@ data class RowEditCallbacks(
  *
  * Tapping the text turns it into a field in place, with the caret on the character that was
  * tapped. That editor is where fast entry lives: Enter starts the next item — or, with the caret
- * still before the first character, one above this one — and Tab and Shift-Tab re-nest it.
+ * still before the first character of an item that has some, one above this one — Backspace on an
+ * item with nothing in it takes the row back off, and Tab and Shift-Tab re-nest it.
+ *
+ * A row with no text draws as the blank line it is: the user keeps those to separate one group of
+ * items from the next, so there is no placeholder saying otherwise. Its handle, checkbox and
+ * delete button stay, since it is still a row like any other.
  */
 @Composable
 fun TodoRow(
@@ -220,12 +227,12 @@ fun TodoRow(
             val textTop = with(LocalDensity.current) { TextVerticalPadding.toPx() }
 
             Text(
-                text = item.text.ifBlank { stringResource(R.string.empty_item) },
+                text = item.text,
                 style = MaterialTheme.typography.bodyLarge,
-                color = when {
-                    item.text.isBlank() -> MaterialTheme.colorScheme.outline
-                    item.done -> MaterialTheme.colorScheme.onSurfaceVariant
-                    else -> MaterialTheme.colorScheme.onSurface
+                color = if (item.done) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
                 },
                 textDecoration = if (item.done) TextDecoration.LineThrough else null,
                 onTextLayout = { layout = it },
@@ -288,7 +295,7 @@ private fun caretOffsetAt(layout: TextLayoutResult?, touch: Offset?, textTop: Fl
  * upward, where the repository's debounce turns a burst of typing into one write. Keys are handled
  * on the *preview* pass so Tab moves the item rather than the focus, and Enter starts another item
  * rather than inserting a newline — the row after this one, or the row above it when the caret has
- * nothing of this item in front of it.
+ * nothing of this item in front of it and the item has something to keep below.
  *
  * A separate composable so that its state — including where the caret sits — is created fresh when
  * an edit begins and thrown away when it ends.
@@ -302,8 +309,9 @@ private fun ItemEditor(
 ) {
     // The caret starts on the character that was tapped, so a word in the middle of a long item can
     // be fixed without walking back to it. Edits that began without a tap — a new item from Enter,
-    // a widget opening the app on one — have no position to honour and start at the end. A blank
-    // item draws a placeholder, which is longer than the empty text the caret has to sit in.
+    // a widget opening the app on one — have no position to honour and start at the end. The offset
+    // is clamped even so: it was measured against the text the row was showing, which a reload can
+    // have replaced with a shorter one by the time the editor opens.
     var value by remember {
         val caret = initialCaret?.coerceIn(0, item.text.length) ?: item.text.length
         mutableStateOf(TextFieldValue(item.text, TextRange(caret)))
@@ -328,9 +336,14 @@ private fun ItemEditor(
     // Where the new item goes is read off the caret: nothing of this item is before it, so the row
     // the user is asking for is the one above rather than the one below. A selection is not a
     // caret at the start even when it begins there — it is a range the next keystroke replaces.
+    //
+    // An item with no text at all has its caret at the start too, but there is nothing to carry
+    // down and so no reason to insert above: the blank row stays where it is, as the separator the
+    // user is keeping, and the new row goes under it with the caret.
     fun onEnter() {
         val selection = value.selection
-        if (selection.collapsed && selection.start == 0) current.onSplitAbove() else current.onSplit()
+        val atStart = value.text.isNotEmpty() && selection.collapsed && selection.start == 0
+        if (atStart) current.onSplitAbove() else current.onSplit()
     }
 
     BasicTextField(
@@ -376,6 +389,13 @@ private fun ItemEditor(
                     }
                     event.key == Key.Enter || event.key == Key.NumPadEnter -> {
                         onEnter()
+                        true
+                    }
+                    // Backspace with nothing left to delete: the row goes instead, and the caret
+                    // carries on at the end of the one above — Enter's move, run backwards. The
+                    // field is empty, so there is nothing for the key to do here either way.
+                    event.key == Key.Backspace && value.text.isEmpty() -> {
+                        current.onBackspaceOnEmpty()
                         true
                     }
                     else -> false

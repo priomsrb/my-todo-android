@@ -11,6 +11,9 @@ package dev.shafqat.mytodo.model
  * app's own markdown, so what comes back through "Add from text" is what left, ticks included.
  * [CopyFormat.Bullets] drops the checkbox syntax for somewhere it would only read as clutter.
  *
+ * Blank rows go out as blank lines in both, and [itemsFromText] reads them back as blank rows: the
+ * gaps a list is grouped by survive the round trip, the same as its nesting does.
+ *
  * This is deliberately *not*
  * [dev.shafqat.mytodo.data.markdown.MarkdownSerializer], for the same reason [itemsFromText] is not
  * the parser: that one writes the user's file and must carry the lines the app does not understand
@@ -47,11 +50,17 @@ fun textFromItems(items: List<TodoItem>, format: CopyFormat = CopyFormat.Default
 
 private fun StringBuilder.appendItems(items: List<TodoItem>, depth: Int, format: CopyFormat) {
     for (item in items) {
-        // A row left blank is one the user is still typing into, or has just pressed Enter one time
-        // too many on; it names nothing to copy. One with children keeps its line anyway, since
-        // dropping it would promote them a level.
-        if (item.text.isBlank() && item.children.isEmpty()) continue
+        // A blank row between two groups copies as a blank line: a bullet with nothing after it
+        // would only read as a mistake in a message, and the gap is the whole point of the row.
+        // Read back in, an empty line is a blank row again.
+        if (item.text.isBlank() && item.children.isEmpty() && depth == 0) {
+            appendLine()
+            continue
+        }
 
+        // Everything else takes a marker, a blank row that is nested or has children included: an
+        // empty line says nothing about which group it belongs to, and both of those depend on it.
+        // Read back in, a marker with nothing written after it is a blank row again.
         val marker = when (format) {
             CopyFormat.Checkboxes -> if (item.done) "- [X]" else "- [ ]"
             CopyFormat.Bullets -> "-"

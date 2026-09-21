@@ -100,9 +100,77 @@ class TextExportTest {
     }
 
     @Test
-    fun `a row still being typed into is left out`() {
+    fun `a blank row copies as a blank line`() {
+        val withGap = listOf(
+            TodoItem(text = "Milk"),
+            TodoItem(text = ""),
+            TodoItem(text = "Screwdriver"),
+        )
+
+        // In both formats: a bullet with nothing after it would read as a mistake in a message,
+        // and the gap is what the row is for.
+        assertEquals("- [ ] Milk\n\n- [ ] Screwdriver", textFromItems(withGap, CopyFormat.Checkboxes))
+        assertEquals("- Milk\n\n- Screwdriver", textFromItems(withGap, CopyFormat.Bullets))
+    }
+
+    @Test
+    fun `a blank row at the end is trimmed off with the trailing newline`() {
         val withBlank = listOf(TodoItem(text = "Item 1"), TodoItem(text = "  "))
         assertEquals("- [ ] Item 1", textFromItems(withBlank))
+    }
+
+    @Test
+    fun `the gaps in a list survive the round trip`() {
+        val withGaps = listOf(
+            TodoItem(text = "Fruit"),
+            TodoItem(text = "Apple"),
+            TodoItem(text = ""),
+            TodoItem(text = "Screwdriver"),
+            TodoItem(text = ""),
+            TodoItem(text = ""),
+            TodoItem(text = "Ring Sam"),
+        )
+
+        for (format in CopyFormat.entries) {
+            val copied = textFromItems(withGaps, format)
+            assertEquals(format.name, copied, textFromItems(itemsFromText(copied), format))
+            assertEquals(
+                format.name,
+                listOf("Fruit", "Apple", "", "Screwdriver", "", "", "Ring Sam"),
+                itemsFromText(copied).map { it.text },
+            )
+        }
+    }
+
+    @Test
+    fun `a nested blank row keeps its level through the round trip`() {
+        // An empty line could not say that this gap closes the nested group rather than opening
+        // the one after it, so a nested one is copied out with its marker on.
+        val nestedGap = listOf(
+            TodoItem(
+                text = "Fruit",
+                children = listOf(TodoItem(text = "Apple"), TodoItem(text = "")),
+            ),
+            TodoItem(text = "Screwdriver"),
+        )
+
+        for (format in CopyFormat.entries) {
+            val copied = textFromItems(nestedGap, format)
+            assertEquals(format.name, copied, textFromItems(itemsFromText(copied), format))
+        }
+    }
+
+    @Test
+    fun `a blank row that opens a nested group round trips as its first child`() {
+        val leadingGap = listOf(
+            TodoItem(
+                text = "Fruit",
+                children = listOf(TodoItem(text = ""), TodoItem(text = "Apple")),
+            ),
+        )
+
+        val copied = textFromItems(leadingGap)
+        assertEquals(copied, textFromItems(itemsFromText(copied)))
     }
 
     @Test
@@ -111,6 +179,11 @@ class TextExportTest {
             TodoItem(text = "", children = listOf(TodoItem(text = "Sub item 1"))),
         )
         assertEquals("- [ ]\n\t- [ ] Sub item 1", textFromItems(blankParent))
+
+        // And a marker with nothing after it is read back as the blank row it was.
+        val pasted = itemsFromText(textFromItems(blankParent))
+        assertEquals("", pasted.single().text)
+        assertEquals("Sub item 1", pasted.single().children.single().text)
     }
 
     @Test

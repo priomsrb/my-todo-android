@@ -10,6 +10,7 @@ import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.findItem
+import dev.shafqat.mytodo.model.flattenVisible
 import dev.shafqat.mytodo.model.itemsFromText
 import dev.shafqat.mytodo.model.visibleRowOf
 import dev.shafqat.mytodo.todoApp
@@ -171,17 +172,39 @@ class TodoListViewModel(
     }
 
     /**
-     * Editing stopped. An item left empty is removed rather than kept as a blank row: it is what
-     * the user gets for pressing Enter one time too many, and it cannot be told apart on screen
-     * from a row they meant to keep.
+     * Backspace on an item with nothing in it: the row goes and the editor carries on at the end of
+     * the row above, which is Enter run backwards.
+     *
+     * Two rows are left alone. One with children under it would take them with it, and a key that
+     * quietly deleted a subtree would be a key nobody could trust; and the first row of the list has
+     * nothing above it to carry the caret to, so Backspace there does what it does in any editor —
+     * nothing — rather than dropping the keyboard. Both are still deleted by the row's own button.
+     *
+     * No undo snackbar: this is a keystroke in the middle of typing, and the row it takes off comes
+     * back with one press of Enter.
+     */
+    fun removeEmptyItem(itemId: String) {
+        val item = items.findItem(itemId) ?: return
+        if (item.text.isNotEmpty() || item.children.isNotEmpty()) return
+
+        val rows = items.flattenVisible()
+        val index = rows.indexOfFirst { it.item.id == itemId }
+        val above = rows.getOrNull(index - 1)?.item ?: return
+
+        viewModelScope.launch {
+            repository.deleteItem(listId, itemId)
+            _focusItemId.value = above.id
+        }
+    }
+
+    /**
+     * Editing stopped. An item left empty is kept as the blank row it is: blank rows are how a
+     * list is broken into groups, so the app never decides on the user's behalf that one was a
+     * mistake. The cost is that a row opened and abandoned stays behind, to be deleted like any
+     * other row.
      */
     fun finishEditing(itemId: String) {
         if (_focusItemId.value == itemId) _focusItemId.value = null
-
-        val item = items.findItem(itemId) ?: return
-        if (item.text.isBlank() && item.children.isEmpty()) {
-            viewModelScope.launch { repository.deleteItem(listId, itemId) }
-        }
     }
 
     fun indent(itemId: String) {
@@ -205,11 +228,9 @@ class TodoListViewModel(
 
         viewModelScope.launch {
             repository.deleteItem(listId, itemId)
-            // An item deleted while still blank is one the user never finished typing; offering to
-            // restore an empty row would be noise.
-            if (item.text.isNotBlank() || item.children.isNotEmpty()) {
-                _pendingUndo.value = row?.let { DeletedItem(item, it.index, it.depth) }
-            }
+            // A blank row is offered back like any other: it is a separator the user put there on
+            // purpose, and deleting one by mistake is as easy as deleting anything else.
+            _pendingUndo.value = row?.let { DeletedItem(item, it.index, it.depth) }
         }
     }
 

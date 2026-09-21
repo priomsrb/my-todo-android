@@ -131,4 +131,37 @@ class MarkdownTest {
 
         assertEquals("Buy milk [2L] - urgent", items.single().text)
     }
+
+    // --- blank rows ---------------------------------------------------------------------------
+
+    @Test
+    fun `a blank item is a line of its own, with no trailing space`() {
+        val text = MarkdownSerializer.serialize(
+            listOf(
+                TodoItem(text = "Milk"),
+                TodoItem(text = ""),
+                TodoItem(text = "Screwdriver"),
+            ),
+        )
+
+        assertEquals("- [ ] Milk\n- [ ]\n- [ ] Screwdriver\n", text)
+    }
+
+    @Test
+    fun `a blank item survives the round trip as a blank item`() {
+        // The gaps a list is grouped with are the user's, so they have to come back out of the
+        // file the same way — not as a dropped line, and not as an unparsed one kept aside.
+        val parsed = MarkdownParser.parse("- [ ] Milk\n- [ ]\n- [ ] Screwdriver\n")
+
+        assertEquals(listOf("Milk", "", "Screwdriver"), parsed.items.map { it.text })
+        assertEquals(emptyMap<String, List<String>>(), parsed.extraLines)
+    }
+
+    @Test
+    fun `a blank item written with a trailing space still reads as blank`() {
+        // What earlier versions of the app wrote, and what a hand-edit can easily leave behind.
+        val parsed = MarkdownParser.parse("- [ ] Milk\n- [ ] \n")
+
+        assertEquals(listOf("Milk", ""), parsed.items.map { it.text })
+    }
 }

@@ -235,11 +235,14 @@ private fun ListWidgetHeader(list: TodoList) {
     }
 }
 
-/** One item: a real checkbox, indented to show where it sits in the tree. */
+/**
+ * One item: a real checkbox, indented to show where it sits in the tree.
+ *
+ * A row with no text draws as a blank one, as it does in the app: those are the separators the
+ * user typed, and naming them would turn every gap in the list into a line of its own.
+ */
 @Composable
 private fun WidgetItemRow(listId: String, row: WidgetRow) {
-    val context = LocalContext.current
-
     CheckBox(
         checked = row.done,
         onCheckedChange = actionRunCallback<ToggleItemAction>(
@@ -249,7 +252,7 @@ private fun WidgetItemRow(listId: String, row: WidgetRow) {
                 targetDone = !row.done,
             ),
         ),
-        text = row.text.ifBlank { context.getString(R.string.empty_item) },
+        text = row.text,
         style = TextStyle(
             color = if (row.done) {
                 GlanceTheme.colors.onSurfaceVariant

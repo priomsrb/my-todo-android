@@ -55,13 +55,15 @@ import dev.shafqat.mytodo.model.updateItem
  */
 data class ItemEditActions(
     val onTextChange: (itemId: String, text: String) -> Unit = { _, _ -> },
-    /** Enter on a non-empty item: start a new one straight after it. */
+    /** Enter: start a new item straight after this one. */
     val onSplit: (itemId: String) -> Unit = {},
-    /** Enter with the caret at the start of an item: start a new one straight above it. */
+    /** Enter with the caret at the start of an item that has text: start a new one above it. */
     val onSplitAbove: (itemId: String) -> Unit = {},
+    /** Backspace on an item with nothing in it: remove it and put the caret on the row above. */
+    val onBackspaceOnEmpty: (itemId: String) -> Unit = {},
     val onIndent: (itemId: String) -> Unit = {},
     val onOutdent: (itemId: String) -> Unit = {},
-    /** Editing stopped. An item still empty at this point never existed as far as the user cares. */
+    /** Editing stopped. The row stays as it is, blank or not. */
     val onEditFinished: (itemId: String) -> Unit = {},
 )
 
@@ -114,7 +116,7 @@ fun TodoItemList(
         }
     }
 
-    /** Ends an edit. Safe to call twice — a row can both lose focus and be dismissed by Enter. */
+    /** Ends an edit. Safe to call twice — a row can both lose focus and be dismissed by Back. */
     fun stopEditing(itemId: String) {
         if (editingItemId == itemId) editingItemId = null
         actions.onEditFinished(itemId)
@@ -199,26 +201,15 @@ fun TodoItemList(
                         showDragHandle = dragEnabled,
                         editCallbacks = RowEditCallbacks(
                             onTextChange = { text -> actions.onTextChange(row.item.id, text) },
-                            onSplit = {
-                                // Enter on an item still empty means "I am done adding",
-                                // so it closes the editor instead of spawning another empty
-                                // row. Only whitespace can reach this with nothing to show
-                                // for it: an item that is truly empty has its caret at the
-                                // start, and that is the other branch.
-                                if (row.item.text.isBlank()) {
-                                    stopEditing(row.item.id)
-                                } else {
-                                    actions.onSplit(row.item.id)
-                                }
-                            },
+                            onSplit = { actions.onSplit(row.item.id) },
                             onSplitAbove = {
                                 // The row being edited keeps its text and its place in the
                                 // tree; the editor moves up to the blank row that has just
-                                // appeared above it. Ending the edit here rather than waiting
-                                // for the field to lose focus is what tidies away an item
-                                // that was still blank when Enter arrived.
+                                // appeared above it.
                                 actions.onSplitAbove(row.item.id)
-                                actions.onEditFinished(row.item.id)
+                            },
+                            onBackspaceOnEmpty = {
+                                actions.onBackspaceOnEmpty(row.item.id)
                             },
                             onIndent = { actions.onIndent(row.item.id) },
                             onOutdent = { actions.onOutdent(row.item.id) },

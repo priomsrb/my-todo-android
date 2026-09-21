@@ -41,7 +41,6 @@
     <string name="list_empty_subtitle">Tap “Add item”, then press Enter for the next one and Tab to nest it.</string>
     <string name="all_done_title">All done</string>
     <string name="all_done_subtitle">Finished items are hidden. Show them again from the menu.</string>
-    <string name="empty_item">New item</string>
     <string name="item_deleted">Item deleted</string>
     <string name="undo">Undo</string>
     <string name="done">Done</string>

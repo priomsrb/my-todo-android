@@ -5,10 +5,11 @@ A Google Keep-inspired Android TODO app whose data lives in plain markdown files
 Current state: **Phase 6 complete** — lists are real markdown files, one per list, in a folder the
 user picks (app-private storage until they do); nested items expand and collapse, rows are lifted
 by the handle and dragged to reorder and re-nest, and items are typed inline (Enter for the next
-one — or, with the caret still at the start, one above — Tab to nest, or the toolbar above the
-keyboard for the same two moves by thumb), deleted with
-an undo from the row's button (or by swiping, once that is switched
-on in settings), coloured per list, searched across lists, and hidden once finished. A whole list can also be
+one — or, with the caret still at the start of one that has text, one above; on a blank row it
+adds another blank, since those are the gaps a list is grouped with, and Backspace on a blank row
+takes it back off — Tab to nest, or the toolbar above the keyboard for the same two moves by
+thumb), deleted with an undo from the row's button (or by swiping, once that is switched on in settings), coloured per list, searched across
+lists, and hidden once finished. A whole list can also be
 pasted in at once from the list's menu, in whatever format it was copied from, and copied back out
 to the clipboard from either menu. Three
 Glance home-screen widgets show a list and tick it off (with a mic and a + in the corner for
@@ -205,7 +206,7 @@ app/src/test/java/dev/shafqat/mytodo/
   SearchTest.kt              matching across lists
   ListEditingTest.kt         the Phase 4 edits as they reach the file, plus list prefs
   TodoItemListUiTest.kt      Compose: dragging rows (Robolectric)
-  TodoItemEditingUiTest.kt   Compose: inline entry, Enter/Tab, swipe-to-delete
+  TodoItemEditingUiTest.kt   Compose: inline entry, Enter/Backspace/Tab, swipe-to-delete
   WidgetRowsTest.kt          widget rows, key round-trips and deep-link intents
   DictationTest.kt           where a dictated sentence is and is not cut into several items
   TextImportTest.kt          the formats a paste may arrive in, and the nesting it must not invent
@@ -305,21 +306,28 @@ app/src/test/java/dev/shafqat/mytodo/
   whole text slot, which starts `TextVerticalPadding` above the text itself, so the padding is
   subtracted first; without that a tap on the second line of a wrapped item can read as the first.
   Edits that began with no tap behind them — a new item from Enter, a widget opening the app on one
-  — pass a null offset and start at the end, as before. A blank row draws a placeholder longer than
-  its own empty text, so the offset is clamped to the text it will actually sit in.
+  — pass a null offset and start at the end, as before. The offset is clamped to the text the editor
+  opens on regardless: it was measured against what the row was showing, which a reload can have
+  replaced with something shorter in between.
 - **Keys are handled on the preview pass.** Tab would otherwise move focus and Enter would insert a
-  newline; `onPreviewKeyEvent` claims Tab, Shift-Tab and Enter before the field sees them. The soft
-  keyboard's Next action is wired to the same place, since IMEs do not deliver Enter as a key event.
+  newline; `onPreviewKeyEvent` claims Tab, Shift-Tab, Enter and Backspace before the field sees
+  them. The soft keyboard's Next action is wired to the same place, since IMEs do not deliver Enter
+  as a key event. Backspace is only claimed on a field that is already empty, which is exactly when
+  a soft keyboard does send it as a key event: with text in front of the caret an IME edits through
+  the input connection instead, and the field's own deletion is left alone.
 - **Enter is "split", and `addItemAfter` is one insert at the row below.** The new item goes at the
   edited row's index plus one, at its depth; when the item has children showing, that position *is*
   its first child, which is what an outliner does anyway. It falls out of the move coordinates
   rather than being a second code path.
-- **Where Enter puts the new item is read off the caret.** With nothing of the item in front of the
-  caret there is nothing to carry on below it, so Enter at offset 0 inserts *above* instead:
-  `addItemBefore`, the same insert at the row's own index and depth, so the item it lands above
-  keeps its text, its place and its children. A selection is not a caret at the start even when it
-  begins at one — it is a range the next keystroke would replace — so only a collapsed caret counts.
-  The editor moves to the new row either way: the row you are typing into is always the new one.
+- **Where Enter puts the new item is read off the caret *and* the text.** With nothing of the item
+  in front of the caret there is nothing to carry on below it, so Enter at offset 0 inserts *above*
+  instead: `addItemBefore`, the same insert at the row's own index and depth, so the item it lands
+  above keeps its text, its place and its children. A selection is not a caret at the start even
+  when it begins at one — it is a range the next keystroke would replace — so only a collapsed
+  caret counts. An item with *no* text is the exception the text check buys: its caret is at offset
+  0 too, but it has nothing to carry down, so the new row goes below and the blank one stays put as
+  the gap the user is making. The editor moves to the new row either way: the row you are typing
+  into is always the new one.
 - **Tab and Shift-Tab are moves, not a depth field.** `indentItem` re-runs `moveSubtree` at the same
   index one level deeper and lets `allowedDepthRange` refuse what is illegal; `outdentItem` first
   walks past the siblings that followed it, so they keep their parent instead of being adopted.
@@ -332,7 +340,7 @@ app/src/test/java/dev/shafqat/mytodo/
   the keyboard. `TodoListScreen` also hides the "Add item" button while an edit is open — it would
   otherwise sit on top of the bar — which is what `onEditingChanged` is for.
 - **A press on the toolbar must not end the edit**, since the editor treats a lost focus as the
-  end and an ended edit drops the keyboard and bins an item still blank. Plain `IconButton`s were
+  end and an ended edit drops the keyboard mid-entry. Plain `IconButton`s were
   measured against that on a device — with a hardware keyboard in play, which is when a clickable
   is focusable at all — and they keep the edit running, so there is nothing clever here to
   preserve. The edits that *did* die a second after a press were the reload above minting new ids,
@@ -342,20 +350,30 @@ app/src/test/java/dev/shafqat/mytodo/
   restating `allowedDepthRange`'s rules in the UI, so a greyed-out button always agrees with what
   Tab would do. A button whose move is impossible is greyed out, never removed: the two must not
   shift under the thumb as the edit moves from row to row.
-- **An item left empty is deleted when the edit ends.** Blank rows cannot be told apart on screen
-  from rows the user meant to keep, and pressing Enter once too many is the usual way to get one.
-  This is also what keeps Enter-at-the-start honest on an item that is still empty: the caret is at
-  offset 0, so a blank row is inserted above and the abandoned one below it is tidied away as the
-  edit moves on — the screen does not change, and blank rows cannot stack up. `TodoItemList` ends
-  that edit itself rather than waiting for the field to lose focus, so the two happen in order.
-  An entry run is closed with Back (or by leaving the app), not by a second Enter.
+- **A blank row is a row.** An item left empty is kept, drawn as the empty line it is — no
+  placeholder text, but handle, checkbox and delete all present — and written to the file as
+  `- [ ] `, which the parser reads back as an empty item. The list is the user's to shape, and a
+  gap between two groups of items is a shape they asked for; the app does not get to decide one was
+  a slip. This was the other way round until it was asked for: blank rows were binned when the edit
+  ended, which also made Enter-on-a-blank read as "done adding". The price of the change is that a
+  row opened and then abandoned stays behind, to be deleted like anything else — and that deleting
+  one offers the same undo, since it is now a row worth getting back.
+  An entry run is closed with Back (or by leaving the app), never by Enter: Enter always adds.
+- **Backspace on an empty row takes it back off**, and the caret carries on at the end of the row
+  above — Enter run backwards, so a gap added by mistake costs one key to undo. `removeEmptyItem`
+  leaves two rows alone: one with children under it, since a keystroke that quietly deleted a
+  subtree would be a keystroke nobody could trust, and the first row of the list, which has nothing
+  above to carry the caret to and so does what Backspace does at the top of any editor — nothing,
+  rather than dropping the keyboard. Both are still deleted by the row's own button. There is no
+  undo snackbar either: this is a keystroke in the middle of typing, and one press of Enter has the
+  row back.
 - **A new editor must not end itself.** A field reports "not focused" once before it is given focus;
-  `ItemEditor` ignores that first report, or every freshly created item would be deleted the
-  instant it appeared.
+  `ItemEditor` ignores that first report, or every freshly created item would lose its editor —
+  and its keyboard — the instant it appeared.
 - **Leaving the app ends the edit too.** Nothing tells a text field it lost focus when the whole
-  screen goes away, so without a lifecycle observer an item the user started typing and then
-  switched away from is left behind as a blank row — and saved into their file as one. This was
-  found in real use, not by the tests.
+  screen goes away, so without a lifecycle observer the row is still in edit mode when the app
+  comes back — and a row mid-edit is one that cannot be swiped away. The row itself is kept, blank
+  or not, as every blank row now is.
 - **Back closes the editor** (`BackHandler` in `TodoItemList`) before it leaves the screen.
   Otherwise the only way out of an edit is to start another one — and an editing row is a row that
   cannot be swiped away, since swipe is deliberately off mid-edit.
@@ -395,15 +413,27 @@ app/src/test/java/dev/shafqat/mytodo/
 - **Pasted text gets its own parser.** `itemsFromText` in `model/TextImport.kt` accepts `-`, `*`,
   `+` and `•` bullets, numbered lines, `- [ ]` / `- [x]` checkboxes and bare lines, mixed within
   one paste. It is deliberately not `MarkdownParser`: that one reads the app's own files, where an
-  unrecognised line is someone's content and must survive untouched, while here every non-blank
-  line is something the user meant to add and nothing may be dropped.
+  unrecognised line is someone's content and must survive untouched, while here every line is
+  something the user meant to add and nothing may be dropped.
 - **The shallowest line sets the baseline.** Text copied out of a code block or a quoted reply
   arrives indented as a whole; without subtracting that baseline every line after the first reads
   as a child of the one before it. The indent *unit* is then the smallest step actually present,
   and a line may still only ever be one level deeper than the line above it.
-- **A bullet must be followed by whitespace**, so "e-mail Sam" and "3.5 kg of flour" keep their
-  text. Lines that are only punctuation — a `---` rule, a stray bullet — name nothing and are
-  dropped rather than added as items.
+- **A bullet must be followed by whitespace** — or by the end of its line — so "e-mail Sam" and
+  "3.5 kg of flour" keep their text while a bullet with nothing after it is still read. A line that
+  is a *run* of punctuation, `---` or `***` or `- - -`, is a horizontal rule and names nothing; two
+  characters at least, since a lone bullet is a blank row rather than a rule.
+- **A blank line is a blank row, and the gaps survive a round trip.** A list is grouped by the gaps
+  in it, so a copy that closed them up would come home changed. An empty line takes the indent of
+  the first line *below* it that has one: a gap opens the group under it rather than closing the
+  one above, which is how a blank line reads in a list pasted from anywhere else. Its own trailing
+  whitespace is ignored — that is leftovers, not a level. A gap that needs to say otherwise, one
+  that is nested or has children, is copied out with its marker on instead (`\t- [ ]`), and a
+  marker with nothing written after it reads back as a blank row at its own indent.
+- **The gaps at either end are trimmed once the tree is built**, not line by line: a paste ends in
+  a blank line whenever the text ends in a newline, which most does, and a list does not open or
+  close on a gap. Trimming after the fact is what lets a blank row that turned out to have children
+  be the first line of the paste and still hold their level.
 - **The dialog counts as it goes.** The field is parsed on every keystroke and the count under it
   says how many items a confirm would add, which is the only way to notice before the fact that a
   stray indent has nested half the paste under its first line.
@@ -439,9 +469,10 @@ app/src/test/java/dev/shafqat/mytodo/
   list set to hide finished items copies as the outstanding work it is being read as. Collapsed
   subtrees still come along in full — collapse is about what fits on a screen, not about what the
   list contains.
-- **A row still being typed into is left out**, the same judgement `finishEditing` makes when it
-  removes a blank row. A blank item that has children keeps its line anyway, because dropping it
-  would promote them a level.
+- **A blank row copies as a blank line**, in both formats: that is what the gap looks like
+  everywhere else, and a bullet with nothing after it would only read as a mistake in a message.
+  A blank row that is nested, or that has children, keeps its marker instead — an empty line says
+  nothing about which group it belongs to, and both of those depend on it.
 - **Nothing to copy hides the menu row.** An empty list, or one whose every item is filtered out,
   offers no "Copy list" at all rather than one that silently does nothing.
 - **Android 13 and up says "Copied" itself**, over the bottom of the screen where a snackbar goes.
@@ -495,7 +526,8 @@ app/src/test/java/dev/shafqat/mytodo/
   A request addressed to "the screen showing this list" is therefore seen by two of them, and the
   one on its way out can get there first: it adds the row to its own dying ViewModel and takes the
   focus with it, so the surviving screen opens no editor, no keyboard appears, and — since nothing
-  is being edited — nothing deletes the blank row either. One press, one stray row, no keyboard.
+  is being edited — the blank row is left with nothing typed into it. One press, one stray row, no
+  keyboard.
   `navController.currentBackStackEntry?.id`, read *after* navigating, leaves exactly one reader.
   This is why it was intermittent: with a slower tap the outgoing entry was already gone.
 - **The editor waits for the window before asking for focus.** A widget tap opens the app and the
