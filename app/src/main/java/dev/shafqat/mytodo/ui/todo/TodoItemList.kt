@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -29,12 +30,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -119,6 +123,24 @@ fun TodoItemList(
         }
     }
 
+    // The row being edited stays whole above the toolbar and the keyboard. The text field only
+    // scrolls its caret's line into view, which left the rest of a row near the bottom — its
+    // checkbox included — cut off behind the toolbar. The viewport shrinks frame by frame as the
+    // keyboard slides up, so this re-checks on every change of size, and once when the edit opens.
+    LaunchedEffect(editingItemId) {
+        val editing = editingItemId ?: return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo }.collect { info ->
+            val row = info.visibleItemsInfo.firstOrNull { it.key == editing } ?: return@collect
+            val overflow = revealOverflow(
+                rowStart = row.offset,
+                rowEnd = row.offset + row.size,
+                viewportStart = info.viewportStartOffset,
+                viewportEnd = info.viewportEndOffset,
+            )
+            if (overflow > 0) listState.scrollBy(overflow.toFloat())
+        }
+    }
+
     /** Ends an edit. Safe to call twice — a row can both lose focus and be dismissed by Back. */
     fun stopEditing(itemId: String) {
         if (editingItemId == itemId) editingItemId = null
@@ -155,10 +177,20 @@ fun TodoItemList(
 
     // The toolbar is drawn over the list rather than beside it, so the rows keep the whole screen
     // and nothing reflows when an edit starts.
+    var toolbarHeight by remember { mutableStateOf(0.dp) }
+    val density = LocalDensity.current
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            // The viewport stops at the toolbar and the keyboard rather than running on beneath
+            // them. The rows do not move when it shrinks — the list is anchored at the top — but
+            // it is what tells the list the row being edited is now covered, so it scrolls that
+            // row up into view. Without it the system panned the whole window up instead, which
+            // lifted the toolbar a second time, off the keyboard and into the middle of the list.
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+                .padding(bottom = if (editingItemId != null) toolbarHeight else 0.dp),
             contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
         ) {
             itemsIndexed(rows, key = { _, row -> row.item.id }) { index, row ->
@@ -270,11 +302,20 @@ fun TodoItemList(
                 onOutdent = { actions.onOutdent(editing) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .imePadding(),
+                    .imePadding()
+                    .onSizeChanged { toolbarHeight = with(density) { it.height.toDp() } },
             )
         }
     }
 }
+
+/**
+ * How far to scroll so a row that runs off the bottom of the viewport is shown whole: nothing for
+ * a row that already fits, and never so far that its top goes off the other end — a wrapped item
+ * taller than the space left keeps its first line in view, which is where editing starts.
+ */
+internal fun revealOverflow(rowStart: Int, rowEnd: Int, viewportStart: Int, viewportEnd: Int): Int =
+    (rowEnd - viewportEnd).coerceAtMost(rowStart - viewportStart).coerceAtLeast(0)
 
 /**
  * Wraps a row so that swiping it either way deletes it.

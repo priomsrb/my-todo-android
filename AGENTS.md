@@ -371,7 +371,13 @@ app/src/test/java/dev/shafqat/mytodo/
   edit starts. That inset arithmetic only works because `TodoListScreen` follows its
   `padding(innerPadding)` with `consumeWindowInsets(innerPadding)`: the scaffold has already paid
   the navigation bar, and without saying so the bar would pay it twice and float a stripe above
-  the keyboard. `TodoListScreen` also hides the "Add item" button while an edit is open — it would
+  the keyboard. It also needs `MainActivity` to be `adjustResize`: without a soft-input mode the
+  system *pans* the window whenever the edited row sits low on screen, and the pan lifts the
+  toolbar on top of its own `imePadding()` — into the middle of the list. The list takes
+  `imePadding()` and the toolbar's height too, so its viewport ends where the toolbar begins, and
+  `TodoItemList` scrolls the edited row up whole (`revealOverflow`) — the text field alone only
+  brings its caret's line into view, which left the checkbox behind the toolbar.
+  `TodoListScreen` also hides the "Add item" button while an edit is open — it would
   otherwise sit on top of the bar — which is what `onEditingChanged` is for.
 - **A press on the toolbar must not end the edit**, since the editor treats a lost focus as the
   end and an ended edit drops the keyboard mid-entry. Plain `IconButton`s were
