@@ -36,14 +36,20 @@ data class WidgetRow(
  * the unfinished work folded beneath it; collapse state does not matter then, since nothing below
  * the top is drawn anyway.
  *
+ * [heldKey] names an item that stays drawn even if it is finished and the list hides finished
+ * items — the one just ticked off, held in view by [RecentlyTicked] so a mistaken tick can be undone
+ * on the spot.
+ *
  * Keys come from the whole tree even though only the visible part is drawn: keys number same-named
  * siblings by position, so deriving them from an already-filtered tree would name the wrong items.
  */
-fun TodoList.widgetRows(topLevelOnly: Boolean = false): List<WidgetRow> {
+fun TodoList.widgetRows(topLevelOnly: Boolean = false, heldKey: String? = null): List<WidgetRow> {
     val keys = CollapseKeys.keysById(items, fileName)
+    val held = keys.filterValues { it == heldKey }.keys
+    val shown = visibleItemsKeeping(held)
 
     if (topLevelOnly) {
-        return visibleItems.mapNotNull { item ->
+        return shown.mapNotNull { item ->
             keys[item.id]?.let { key ->
                 WidgetRow(
                     key = key,
@@ -56,7 +62,7 @@ fun TodoList.widgetRows(topLevelOnly: Boolean = false): List<WidgetRow> {
         }
     }
 
-    return visibleItems.flattenVisible().mapNotNull { row ->
+    return shown.flattenVisible().mapNotNull { row ->
         keys[row.item.id]?.let { key ->
             WidgetRow(key = key, text = row.item.text, done = row.item.done, depth = row.depth)
         }

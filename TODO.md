@@ -268,6 +268,17 @@ Worth knowing before Phase 6:
       done *and* keeps its count, so it does not pass for finished. Hide-completed keeps it on the
       widget for the same reason it keeps it in the app. Checked on the emulator, file included
 
+## Phase 6g — A widget tick that can be taken back ✅
+
+- [x] On a list that hides finished items, an item ticked from the widget stays drawn — struck
+      through, where it was — for 4 seconds, or until something else is ticked, before it hides. A
+      tick on the wrong row is undone by tapping it again, instead of opening the app to find it.
+      One item is held at a time, by `CollapseKeys` key, in memory only (`RecentlyTicked`): a
+      process death just lets it hide, which is what happened before
+- [x] Checked on the emulator: held through ~3.5s and gone by ~6.5s, untick within the hold leaves
+      the file as it was, and a second tick releases the first. The app's own list screen still
+      hides a ticked item at once — reuse `visibleItemsKeeping` there if that proves annoying too
+
 ## Phase 7 — Robustness and extras
 
 - [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers

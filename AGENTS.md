@@ -182,6 +182,7 @@ app/src/main/java/dev/shafqat/mytodo/
     ListWidgetConfigActivity.kt / VoiceWidgetConfigActivity.kt  its two subclasses
     ToggleItemAction.kt      a tick from a widget, resolved back to an item and written through
     WidgetRows.kt            the pure projection of a list into widget rows
+    RecentlyTicked.kt        the item just ticked, kept in view for a moment on a hide-completed list
     WidgetHost.kt            getting the repository, and the intents back into the app
     WidgetColors.kt          the app's palette as Glance colour providers, and the list-tint rule
   ui/
@@ -212,6 +213,7 @@ app/src/test/java/dev/shafqat/mytodo/
   TodoItemListUiTest.kt      Compose: dragging rows (Robolectric)
   TodoItemEditingUiTest.kt   Compose: inline entry, Enter/Backspace/Tab, swipe-to-delete
   WidgetRowsTest.kt          widget rows (full and top-level only), key round-trips, deep-link intents
+  RecentlyTickedTest.kt      how long a widget tick stays in view, and what lets it go early
   DictationTest.kt           where a dictated sentence is and is not cut into several items
   TextImportTest.kt          the formats a paste may arrive in, and the nesting it must not invent
   TextExportTest.kt          what a copy puts on the clipboard, and its round trip back in
@@ -536,6 +538,13 @@ app/src/test/java/dev/shafqat/mytodo/
   tick the app would not, and the count is what keeps the parent from passing as finished. The
   header's done/total switches to top-level items (`widgetProgress`) so it describes the rows
   under it.
+- **A tick is held in view for a moment before hide-completed takes it.** `RecentlyTicked` (owned
+  by `MyTodoApplication`) remembers the last item ticked from a widget, by key, for 4 seconds or
+  until the next tick, and `widgetRows(heldKey = …)` keeps it drawn — struck through, in place —
+  through `withoutCompleted(keep = …)`. A wrong tick is then undone by tapping the same row again.
+  It is recorded *before* the write, so the redraw the write causes already holds it; the timer
+  runs on the application scope, not in the action callback, and redraws the widgets when it lets
+  go. Memory only: a process death just lets the item hide, which is the old behaviour.
 - **The list widget's corner carries two buttons: a mic and a "+".** The mic is the voice tile's
   press, same intent and same activity. The "+" opens the list in the app with an empty item already
   waiting at the top — the other half of the same idea, for when dictation is the wrong tool. They

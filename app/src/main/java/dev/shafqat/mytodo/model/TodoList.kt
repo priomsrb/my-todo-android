@@ -17,7 +17,11 @@ data class TodoList(
 
     /** The rows to render: everything, unless this list is set to hide what is finished. */
     val visibleItems: List<TodoItem>
-        get() = if (prefs.hideCompleted) items.withoutCompleted() else items
+        get() = visibleItemsKeeping(emptySet())
+
+    /** [visibleItems], except that the items whose ids are in [keep] stay even when finished. */
+    fun visibleItemsKeeping(keep: Set<String>): List<TodoItem> =
+        if (prefs.hideCompleted) items.withoutCompleted(keep) else items
 }
 
 /** Turns a list name into a safe markdown filename, e.g. "Shopping list" -> "shopping-list.md". */

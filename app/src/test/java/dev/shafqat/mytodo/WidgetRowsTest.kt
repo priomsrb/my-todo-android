@@ -72,6 +72,25 @@ class WidgetRowsTest {
         assertEquals(listOf("Shop", "Bread"), hiding.widgetRows().map { it.text })
     }
 
+    @Test
+    fun `the item just ticked stays drawn, struck through, while the list hides finished items`() {
+        val hiding = list.copy(prefs = ListPrefs(hideCompleted = true))
+        val milkKey = CollapseKeys.keysById(list.items, list.fileName).getValue("milk")
+
+        val rows = hiding.widgetRows(heldKey = milkKey)
+
+        assertEquals(listOf("Shop", "Milk", "Bread"), rows.map { it.text })
+        assertEquals(true, rows.single { it.text == "Milk" }.done)
+    }
+
+    @Test
+    fun `a held key from another list holds nothing here`() {
+        val hiding = list.copy(prefs = ListPrefs(hideCompleted = true))
+        val elsewhere = CollapseKeys.keysById(list.items, "chores.md").getValue("milk")
+
+        assertEquals(listOf("Shop", "Bread"), hiding.widgetRows(heldKey = elsewhere).map { it.text })
+    }
+
     // --- top-level only -------------------------------------------------------------------
 
     @Test

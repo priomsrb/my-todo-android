@@ -15,11 +15,14 @@ package dev.shafqat.mytodo.model
  *
  * A done item that still has unfinished descendants stays, grayed out, because its children have
  * nowhere else to hang: dropping it would either orphan them or silently promote them a level.
+ *
+ * Items whose ids are in [keep] stay too, finished or not — the item just ticked off, left in view
+ * for a moment so a tick on the wrong row can be taken back where it was made.
  */
-fun List<TodoItem>.withoutCompleted(): List<TodoItem> =
+fun List<TodoItem>.withoutCompleted(keep: Set<String> = emptySet()): List<TodoItem> =
     mapNotNull { item ->
-        val children = item.children.withoutCompleted()
-        if (item.done && children.isEmpty()) null else item.copy(children = children)
+        val children = item.children.withoutCompleted(keep)
+        if (item.done && children.isEmpty() && item.id !in keep) null else item.copy(children = children)
     }
 
 /**

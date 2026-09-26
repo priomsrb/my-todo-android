@@ -72,6 +72,32 @@ class CompletedTest {
     }
 
     @Test
+    fun `a kept item stays even though it is finished, and nothing else does`() {
+        assertEquals(
+            """
+            shop
+              milk
+              bread
+            chores
+            mum
+            """.trimIndent(),
+            tree.withoutCompleted(keep = setOf("milk")).outline(),
+        )
+    }
+
+    @Test
+    fun `keeping a finished child keeps the finished parent it hangs from`() {
+        val allDone = listOf(
+            TodoItem(
+                id = "shop", text = "Shop", done = true,
+                children = listOf(TodoItem(id = "milk", text = "Milk", done = true)),
+            ),
+        )
+
+        assertEquals("shop\n  milk", allDone.withoutCompleted(keep = setOf("milk")).outline())
+    }
+
+    @Test
     fun `hiding never touches the underlying tree`() {
         val before = tree.outline()
         tree.withoutCompleted()

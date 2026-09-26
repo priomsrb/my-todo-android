@@ -7,6 +7,7 @@ import androidx.glance.action.actionParametersOf
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.ToggleableStateKey
 import dev.shafqat.mytodo.data.collapse.CollapseKeys
+import dev.shafqat.mytodo.todoApp
 
 /**
  * Ticking an item off from the widget, written straight through to the markdown file.
@@ -32,6 +33,8 @@ class ToggleItemAction : ActionCallback {
         val list = repository.lists.value.firstOrNull { it.id == listId } ?: return
         val itemId = CollapseKeys.idOf(list.items, list.fileName, itemKey) ?: return
 
+        // Before the write, so the redraw it causes already keeps a just-ticked item in view.
+        context.todoApp.recentlyTicked.ticked(itemKey, done)
         repository.setItemDone(listId, itemId, done)
         // Edits normally settle on a debounce, but nothing keeps this process alive once the tap is
         // handled, so the write has to happen now.

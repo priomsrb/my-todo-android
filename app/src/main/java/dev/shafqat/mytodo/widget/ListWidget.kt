@@ -78,12 +78,13 @@ class ListWidget : GlanceAppWidget() {
                     val lists by repository.lists.collectAsState()
                     val topLevelOnly by settings.widgetTopLevelOnly
                         .collectAsState(initial = initialTopLevelOnly)
+                    val heldKey by context.todoApp.recentlyTicked.key.collectAsState()
                     val list = lists.firstOrNull { it.id == listId }
 
                     if (list == null) {
                         WidgetMessage(context.getString(R.string.widget_list_missing))
                     } else {
-                        ListWidgetContent(list, topLevelOnly)
+                        ListWidgetContent(list, topLevelOnly, heldKey)
                     }
                 }
             }
@@ -96,9 +97,9 @@ class ListWidget : GlanceAppWidget() {
 }
 
 @Composable
-private fun ListWidgetContent(list: TodoList, topLevelOnly: Boolean) {
+private fun ListWidgetContent(list: TodoList, topLevelOnly: Boolean, heldKey: String?) {
     val context = LocalContext.current
-    val rows = list.widgetRows(topLevelOnly)
+    val rows = list.widgetRows(topLevelOnly, heldKey)
 
     Box(
         modifier = GlanceModifier

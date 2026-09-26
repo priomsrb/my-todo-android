@@ -9,6 +9,7 @@ import dev.shafqat.mytodo.data.settings.DataStoreListPrefsStore
 import dev.shafqat.mytodo.data.settings.SettingsRepository
 import dev.shafqat.mytodo.data.store.LocalDirectoryStore
 import dev.shafqat.mytodo.data.store.SafDirectoryStore
+import dev.shafqat.mytodo.widget.RecentlyTicked
 import dev.shafqat.mytodo.widget.updateTodoWidgets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,11 @@ class MyTodoApplication : Application() {
             collapseStore = DataStoreCollapseStore(this),
             listPrefsStore = DataStoreListPrefsStore(this),
         )
+    }
+
+    /** The item last ticked from a widget, kept in view for a moment before it hides. */
+    val recentlyTicked: RecentlyTicked by lazy {
+        RecentlyTicked(applicationScope, onReleased = { updateTodoWidgets() })
     }
 
     /** The folder currently attached, so an unchanged setting never triggers a reload. */
