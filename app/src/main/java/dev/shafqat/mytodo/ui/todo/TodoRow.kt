@@ -6,13 +6,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -61,6 +65,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.TodoItem
@@ -75,10 +80,17 @@ private val ChevronSize = 28.dp
 
 /**
  * Padding above and below an item's text — and the same on its editor, so the swap between the
- * two moves nothing. It is also the gap between the top of the text slot and the text itself,
- * which matters when turning a touch into a caret position.
+ * two moves nothing. The top one is also the gap between the top of the text slot and the text
+ * itself, which matters when turning a touch into a caret position.
+ *
+ * The two are uneven on purpose. The controls beside the text centre on the slot of its first line
+ * ([FirstLine]), which is the middle of the line *box*; but a line of mixed-case text reads as
+ * centred lower than that, around its lowercase letters, so with even padding the text looked
+ * like it rode above its checkbox. Two dp off the top and onto the bottom sets it level, and leaves
+ * a one-line row exactly as tall as it was.
  */
-private val TextVerticalPadding = 12.dp
+private val TextTopPadding = 14.dp
+private val TextBottomPadding = 10.dp
 
 /** Test tag on the text field a row shows while it is being edited. */
 const val ItemEditorTag = "item-editor"
@@ -124,6 +136,11 @@ data class RowEditCallbacks(
  * A row with no text draws as the blank line it is: the user keeps those to separate one group of
  * items from the next, so there is no placeholder saying otherwise. Its handle, checkbox and
  * delete button stay, since it is still a row like any other.
+ *
+ * Everything beside the text lines up with its *first* line, not with the middle of the row, so a
+ * long item that wraps keeps its checkbox next to where it starts reading — as Keep does. The row is
+ * top-aligned and each control sits in a slot one text line tall ([FirstLine]); for a single-line
+ * item that slot is the whole row, so nothing moves.
  */
 @Composable
 fun TodoRow(
@@ -148,6 +165,11 @@ fun TodoRow(
     val hasChildren = item.children.isNotEmpty()
     // The indent animates so an indent/outdent during a drag reads as movement, not a jump.
     val indent by animateDpAsState(targetValue = IndentPerLevel * depth, label = "indent")
+    // The text's first line with its padding: the height every control is centred within. Read
+    // off the text style rather than fixed, so a larger font scale moves the controls with it.
+    val firstLine = with(LocalDensity.current) {
+        TextTopPadding + TextBottomPadding + MaterialTheme.typography.bodyLarge.lineHeight.toDp()
+    }
 
     Row(
         modifier = modifier
@@ -158,19 +180,21 @@ fun TodoRow(
                 RoundedCornerShape(8.dp),
             )
             .padding(start = indent, end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         if (showDragHandle) {
-            Icon(
-                imageVector = Icons.Default.DragIndicator,
-                contentDescription = stringResource(R.string.drag_handle),
-                tint = if (isDragging) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.outline
-                },
-                modifier = dragHandleModifier.size(20.dp),
-            )
+            FirstLine(firstLine) {
+                Icon(
+                    imageVector = Icons.Default.DragIndicator,
+                    contentDescription = stringResource(R.string.drag_handle),
+                    tint = if (isDragging) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    },
+                    modifier = dragHandleModifier.size(20.dp),
+                )
+            }
         } else {
             // Reordering is off, so the handle would be a control that does nothing. The space it
             // held stays, to keep the rows lined up with how they look the rest of the time.
@@ -183,32 +207,36 @@ fun TodoRow(
                 targetValue = if (item.collapsed) -90f else 0f,
                 label = "chevron",
             )
-            IconButton(
-                onClick = { onToggleCollapsed(!item.collapsed) },
-                modifier = Modifier.size(ChevronSize),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ExpandMore,
-                    contentDescription = stringResource(
-                        if (item.collapsed) R.string.expand else R.string.collapse,
-                    ),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .rotate(rotation),
-                )
+            FirstLine(firstLine) {
+                IconButton(
+                    onClick = { onToggleCollapsed(!item.collapsed) },
+                    modifier = Modifier.size(ChevronSize),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ExpandMore,
+                        contentDescription = stringResource(
+                            if (item.collapsed) R.string.expand else R.string.collapse,
+                        ),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .rotate(rotation),
+                    )
+                }
             }
         } else {
             Spacer(Modifier.width(ChevronSize))
         }
 
-        Checkbox(
-            checked = item.done,
-            onCheckedChange = onToggleDone,
-            colors = CheckboxDefaults.colors(
-                checkedColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        )
+        FirstLine(firstLine) {
+            Checkbox(
+                checked = item.done,
+                onCheckedChange = onToggleDone,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            )
+        }
 
         if (isEditing) {
             ItemEditor(
@@ -224,7 +252,7 @@ fun TodoRow(
             // stale touch.
             var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
             var touch by remember { mutableStateOf<Offset?>(null) }
-            val textTop = with(LocalDensity.current) { TextVerticalPadding.toPx() }
+            val textTop = with(LocalDensity.current) { TextTopPadding.toPx() }
 
             Text(
                 text = item.text,
@@ -250,27 +278,49 @@ fun TodoRow(
                         }
                     }
                     .clickable { onStartEdit(caretOffsetAt(layout, touch, textTop)) }
-                    .padding(vertical = TextVerticalPadding),
+                    .padding(top = TextTopPadding, bottom = TextBottomPadding),
             )
         }
 
         if (item.collapsed && hasChildren) {
-            Text(
-                text = item.children.totalCount().toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
+            FirstLine(firstLine) {
+                Text(
+                    text = item.children.totalCount().toString(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+            }
         }
 
-        IconButton(onClick = onDelete) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = stringResource(R.string.delete),
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(18.dp),
-            )
+        FirstLine(firstLine) {
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.delete),
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
+    }
+}
+
+/**
+ * A slot one line of item text tall, with [content] centred in it: how a control beside the text
+ * lines up with its first line. A control taller than the line — a 48dp touch target under a
+ * small font scale — is still measured at its own size and overflows the slot evenly, rather than
+ * being squeezed to fit it.
+ */
+@Composable
+private fun RowScope.FirstLine(height: Dp, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .height(height)
+            .wrapContentHeight(unbounded = true),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
     }
 }
 
@@ -371,7 +421,7 @@ private fun ItemEditor(
         keyboardActions = KeyboardActions(onNext = { onEnter() }),
         modifier = modifier
             .testTag(ItemEditorTag)
-            .padding(vertical = TextVerticalPadding)
+            .padding(top = TextTopPadding, bottom = TextBottomPadding)
             .focusRequester(focusRequester)
             .onFocusChanged { state ->
                 if (state.isFocused) hasBeenFocused = true else if (hasBeenFocused) current.onDone()

@@ -163,7 +163,8 @@ private fun SearchResultRow(hit: SearchHit, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        // The box sits by the item's first line, not halfway down the item and its path.
+        verticalAlignment = Alignment.Top,
     ) {
         Icon(
             imageVector = if (hit.item.done) {
@@ -174,6 +175,8 @@ private fun SearchResultRow(hit: SearchHit, onClick: () -> Unit) {
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
+                // Centres the 18dp box on the 24sp first line of the text beside it.
+                .padding(top = 3.dp)
                 .size(18.dp)
                 .padding(end = 2.dp),
         )

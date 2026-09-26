@@ -243,22 +243,60 @@ private fun ListWidgetHeader(list: TodoList, topLevelOnly: Boolean) {
 /**
  * One item: a real checkbox, indented to show where it sits in the tree.
  *
+ * The box and the text are two views rather than one `CheckBox` with text, because a compound
+ * button centres its box on the whole of its text and Glance offers no way to say otherwise: an
+ * item that wrapped had its box floating halfway down it. Apart, the row is top-aligned and the
+ * text is nudged down so its first line sits level with the box, as in the app. The text carries
+ * the same toggle as the box, so the whole row is still the target it was.
+ *
  * When the widget shows top-level items only, a row with unfinished work folded beneath it says how
- * much, outside the checkbox's text so a ticked parent's count is not struck through with it: the
- * tick is the parent's, the count is what is still open under it.
+ * much, outside the text so a ticked parent's count is not struck through with it: the tick is the
+ * parent's, the count is what is still open under it.
  *
  * A row with no text draws as a blank one, as it does in the app: those are the separators the
  * user typed, and naming them would turn every gap in the list into a line of its own.
  */
 @Composable
 private fun WidgetItemRow(listId: String, row: WidgetRow) {
+    val toggle = actionRunCallback<ToggleItemAction>(
+        ToggleItemAction.parameters(
+            listId = listId,
+            itemKey = row.key,
+            targetDone = !row.done,
+        ),
+    )
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
             .padding(start = WidgetIndentPerLevel * row.depth),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
-        WidgetItemCheckBox(listId, row, GlanceModifier.defaultWeight())
+        CheckBox(
+            checked = row.done,
+            onCheckedChange = toggle,
+            text = "",
+            colors = CheckboxDefaults.colors(
+                checkedColor = GlanceTheme.colors.onSurfaceVariant,
+                uncheckedColor = GlanceTheme.colors.outline,
+            ),
+        )
+        Text(
+            text = row.text,
+            style = TextStyle(
+                color = if (row.done) {
+                    GlanceTheme.colors.onSurfaceVariant
+                } else {
+                    GlanceTheme.colors.onSurface
+                },
+                fontSize = WidgetBodySize,
+                textDecoration = if (row.done) TextDecoration.LineThrough else TextDecoration.None,
+            ),
+            maxLines = 2,
+            modifier = GlanceModifier
+                .defaultWeight()
+                .padding(top = WidgetFirstLineInset)
+                .clickable(toggle),
+        )
         if (row.hiddenOpenCount > 0) {
             Text(
                 text = "· ${row.hiddenOpenCount}",
@@ -266,41 +304,22 @@ private fun WidgetItemRow(listId: String, row: WidgetRow) {
                     color = GlanceTheme.colors.onSurfaceVariant,
                     fontSize = WidgetCaptionSize,
                 ),
-                modifier = GlanceModifier.padding(start = 4.dp, end = 4.dp),
+                modifier = GlanceModifier.padding(start = 4.dp, end = 4.dp, top = WidgetCaptionInset),
             )
         }
     }
 }
 
-@Composable
-private fun WidgetItemCheckBox(listId: String, row: WidgetRow, modifier: GlanceModifier) {
-    CheckBox(
-        checked = row.done,
-        onCheckedChange = actionRunCallback<ToggleItemAction>(
-            ToggleItemAction.parameters(
-                listId = listId,
-                itemKey = row.key,
-                targetDone = !row.done,
-            ),
-        ),
-        text = row.text,
-        style = TextStyle(
-            color = if (row.done) {
-                GlanceTheme.colors.onSurfaceVariant
-            } else {
-                GlanceTheme.colors.onSurface
-            },
-            fontSize = WidgetBodySize,
-            textDecoration = if (row.done) TextDecoration.LineThrough else TextDecoration.None,
-        ),
-        colors = CheckboxDefaults.colors(
-            checkedColor = GlanceTheme.colors.onSurfaceVariant,
-            uncheckedColor = GlanceTheme.colors.outline,
-        ),
-        maxLines = 2,
-        modifier = modifier,
-    )
-}
+/**
+ * How far an item's text sits below the top of its row, so its first line reads as level with the
+ * checkbox beside it. Measured on a device — a remote view cannot be told to centre on another
+ * view's first line — and set to match the app's rows: the middle of the line box sits about a
+ * dp above the middle of the box, which is where mixed-case text looks centred. Centring the line
+ * box exactly (7dp) left the text looking low. The caption's line is shorter, so it sits a little
+ * lower still.
+ */
+private val WidgetFirstLineInset = 5.5.dp
+private val WidgetCaptionInset = 6.5.dp
 
 /** Receives the system's update broadcasts for [ListWidget]. */
 class ListWidgetReceiver : GlanceAppWidgetReceiver() {

@@ -302,12 +302,19 @@ app/src/test/java/dev/shafqat/mytodo/
   in, since a wrapping field can be handed one by a paste or by an IME's return key, and an item is
   one line of markdown. Enter is still intercepted before the field sees it, so it splits the item
   rather than breaking the line.
+- **A row's controls line up with the first line of its text**, not the middle of the item.
+  `TodoRow` is top-aligned and puts each control in a `FirstLine` slot as tall as one line of
+  `bodyLarge` plus its padding — which is the whole row for a one-line item, so only
+  wrapped items look any different. The slot height is read off the text style, so it follows the
+  font scale. The text's padding is 14dp above and 10dp below rather than 12 and 12: mixed-case
+  text reads as centred around its lowercase letters, below the middle of its line box, and with
+  even padding it looked as if it rode above its checkbox. The widget's text inset is set to match.
 - **The caret opens on the character that was tapped**, so a word in the middle of a long item can
   be fixed without walking back to it. `TodoRow` keeps the `TextLayoutResult` of the text it is
   showing and notes where the finger went down — on the *initial* pointer pass, consuming nothing,
   so the `clickable` still owns the tap along with its ripple and its accessibility click — then
   turns the two into an offset with `getOffsetForPosition`. That touch is in the coordinates of the
-  whole text slot, which starts `TextVerticalPadding` above the text itself, so the padding is
+  whole text slot, which starts `TextTopPadding` above the text itself, so the padding is
   subtracted first; without that a tap on the second line of a wrapped item can read as the first.
   Edits that began with no tap behind them — a new item from Enter, a widget opening the app on one
   — pass a null offset and start at the end, as before. The offset is clamped to the text the editor
@@ -517,6 +524,11 @@ app/src/test/java/dev/shafqat/mytodo/
   lists did not change, so nothing else would. `widgetRows(topLevelOnly = true)` still keys from
   the whole tree and still respects hide-completed; collapse is moot, since nothing below the top
   is drawn.
+- **A row is a text-less `CheckBox` beside a separate `Text`**, not one `CheckBox` with text: a
+  compound button centres its box on all of its text and Glance cannot change that, so a wrapped
+  item had its box halfway down it. The row is top-aligned, the text is nudged down by a measured
+  inset to sit level with the box, and it carries the same toggle so the whole row is still the tap
+  target.
 - **A hidden subtree is shown as a count, and a tick stays one item's tick.** Each top-level row
   carries `hiddenOpenCount` — unfinished, non-blank items at any depth beneath it — drawn beside the
   checkbox rather than in its text, so a ticked parent's strikethrough does not run through it. A
