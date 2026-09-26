@@ -83,21 +83,39 @@ refuse to compile against 36.
 ```bash
 ./gradlew :app:assembleDebug          # build the debug APK
 ./gradlew :app:testDebugUnitTest      # all tests: pure logic + Compose UI (Robolectric)
-./gradlew :app:installDebug           # install onto a running device/emulator
 ./gradlew :app:lintDebug              # Android lint
 scripts/install-phone.sh              # build + install onto the USB phone only, keep data, launch
 ```
+
+**`installDebug` installs onto every device adb can see**, with no prompt: that is the Android
+Gradle Plugin's default, not something this project configures. With the emulator running and
+a phone plugged in, a bare `./gradlew :app:installDebug` puts the build on both, including the
+user's own phone. Always name the device, by setting `ANDROID_SERIAL`. Both adb and the Gradle
+install task honour it.
+
+- **Don't hardcode a serial.** An emulator's serial is `emulator-<console port>`, so it depends on
+  start order, not on the AVD: the first emulator running is `emulator-5554`, a second one
+  `emulator-5556`, and so on. Another dev will usually see `emulator-5554` too, but not always. A
+  physical phone's serial comes from its hardware, so every dev's phone is different.
+- **Look it up instead.** `adb -e get-serialno` gives the emulator's serial and `adb -d
+  get-serialno` the USB device's. Each fails when zero or several such devices are connected,
+  which is the moment you want it to stop.
+- **Set it on each command.** An agent's shell state does not carry between tool calls, so put
+  `ANDROID_SERIAL=...` in front of each command that needs it, or use `adb -e` / `adb -s` directly.
+  The inline `VAR=value cmd` form and `$(...)` work in bash, zsh and fish alike.
 
 Run on the emulator:
 
 ```bash
 ~/Library/Android/sdk/emulator/emulator -avd Medium_Phone_API_36.1 &
-adb wait-for-device
-./gradlew :app:installDebug
-adb shell am start -n dev.shafqat.mytodo/.MainActivity
+adb -e wait-for-device
+ANDROID_SERIAL=$(adb -e get-serialno) ./gradlew :app:installDebug
+adb -e shell am start -n dev.shafqat.mytodo/.MainActivity
 ```
 
-Screenshot for visual checks: `adb exec-out screencap -p > /tmp/screen.png`.
+The AVD name is this machine's. `emulator -list-avds` shows what another machine has.
+
+Screenshot for visual checks: `adb -e exec-out screencap -p > /tmp/screen.png`.
 
 ### Checking behaviour on a device
 
@@ -105,8 +123,11 @@ Compose UI tests cover gesture and navigation wiring, but not rendering or real 
 those, drive the emulator directly — no screenshots-by-eye needed:
 
 ```bash
-adb shell uiautomator dump /sdcard/ui.xml    # then read bounds + content-desc from the XML
+adb -e shell uiautomator dump /sdcard/ui.xml    # then read bounds + content-desc from the XML
 ```
+
+The `adb` commands in this section are written bare for brevity. With a phone plugged in as well,
+a bare `adb` refuses to run ("more than one device/emulator"). Add `-e` to target the emulator.
 
 - **Find elements by their bounds**, not by guessing pixels: every row's drag handle carries
   `content-desc="Reorder"`, checkboxes appear as `android.widget.CheckBox`, item text as `TextView`.
