@@ -59,8 +59,11 @@ data class ItemEditActions(
     val onSplit: (itemId: String) -> Unit = {},
     /** Enter with the caret at the start of an item that has text: start a new one above it. */
     val onSplitAbove: (itemId: String) -> Unit = {},
-    /** Backspace on an item with nothing in it: remove it and put the caret on the row above. */
-    val onBackspaceOnEmpty: (itemId: String) -> Unit = {},
+    /**
+     * Backspace on an item with nothing in it: remove it, and return the row above for the caret
+     * to carry on in — or null when the row stays, which leaves the editor where it is.
+     */
+    val onBackspaceOnEmpty: (itemId: String) -> String? = { null },
     val onIndent: (itemId: String) -> Unit = {},
     val onOutdent: (itemId: String) -> Unit = {},
     /** Editing stopped. The row stays as it is, blank or not. */
@@ -209,7 +212,13 @@ fun TodoItemList(
                                 actions.onSplitAbove(row.item.id)
                             },
                             onBackspaceOnEmpty = {
-                                actions.onBackspaceOnEmpty(row.item.id)
+                                // The editor moves up before the row is gone, the way Enter
+                                // moves it down, so there is never a moment with no field
+                                // focused — which is what dropped the keyboard and put it back.
+                                actions.onBackspaceOnEmpty(row.item.id)?.let { above ->
+                                    editingItemId = above
+                                    editingCaret = null
+                                }
                             },
                             onIndent = { actions.onIndent(row.item.id) },
                             onOutdent = { actions.onOutdent(row.item.id) },

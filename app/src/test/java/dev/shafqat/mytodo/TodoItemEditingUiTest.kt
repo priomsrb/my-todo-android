@@ -157,7 +157,9 @@ class TodoItemEditingUiTest {
                         if (item != null && item.children.isEmpty() && above != null) {
                             deleted += id
                             items = items.removeItem(id)
-                            focusItemId = above.item.id
+                            above.item.id
+                        } else {
+                            null
                         }
                     },
                     onIndent = { id -> items = items.indentItem(id) },

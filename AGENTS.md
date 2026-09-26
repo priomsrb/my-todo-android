@@ -368,6 +368,10 @@ app/src/test/java/dev/shafqat/mytodo/
   rather than dropping the keyboard. Both are still deleted by the row's own button. There is no
   undo snackbar either: this is a keystroke in the middle of typing, and one press of Enter has the
   row back.
+  **The editor moves up before the row goes.** `removeEmptyItem` returns the row above and
+  `TodoItemList` switches the editor to it in the same callback, rather than waiting on
+  `focusItemId`: that only arrives after the deleted row — and its focused field — has left the
+  screen, and a frame with nothing focused is enough for the keyboard to drop and come back up.
 - **A new editor must not end itself.** A field reports "not focused" once before it is given focus;
   `ItemEditor` ignores that first report, or every freshly created item would lose its editor —
   and its keyboard — the instant it appeared.

@@ -182,19 +182,22 @@ class TodoListViewModel(
      *
      * No undo snackbar: this is a keystroke in the middle of typing, and the row it takes off comes
      * back with one press of Enter.
+     *
+     * Returns the row the editor should carry on in, or null if the row was left alone. The list
+     * moves its editor there itself, in the same breath as the keystroke, rather than waiting for
+     * [focusItemId]: that arrives only after the deleted row has already gone, and for the frames
+     * in between no field has focus, so the keyboard drops and comes straight back up.
      */
-    fun removeEmptyItem(itemId: String) {
-        val item = items.findItem(itemId) ?: return
-        if (item.text.isNotEmpty() || item.children.isNotEmpty()) return
+    fun removeEmptyItem(itemId: String): String? {
+        val item = items.findItem(itemId) ?: return null
+        if (item.text.isNotEmpty() || item.children.isNotEmpty()) return null
 
         val rows = items.flattenVisible()
         val index = rows.indexOfFirst { it.item.id == itemId }
-        val above = rows.getOrNull(index - 1)?.item ?: return
+        val above = rows.getOrNull(index - 1)?.item ?: return null
 
-        viewModelScope.launch {
-            repository.deleteItem(listId, itemId)
-            _focusItemId.value = above.id
-        }
+        viewModelScope.launch { repository.deleteItem(listId, itemId) }
+        return above.id
     }
 
     /**
