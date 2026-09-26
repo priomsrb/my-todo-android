@@ -24,6 +24,8 @@ import dev.shafqat.mytodo.model.removeItem
 import dev.shafqat.mytodo.model.uniqueFileName
 import dev.shafqat.mytodo.model.updateItem
 import dev.shafqat.mytodo.model.visibleRowOf
+import dev.shafqat.mytodo.model.withDoneFrom
+import dev.shafqat.mytodo.model.withSubtreeDone
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -309,6 +311,14 @@ class MarkdownTodoRepository(
 
     override suspend fun setItemDone(listId: String, itemId: String, done: Boolean) {
         mutate(listId) { items -> items.updateItem(itemId) { it.copy(done = done) } }
+    }
+
+    override suspend fun setSubtreeDone(listId: String, itemId: String, done: Boolean) {
+        mutate(listId) { items -> items.updateItem(itemId) { it.withSubtreeDone(done) } }
+    }
+
+    override suspend fun restoreSubtreeDone(listId: String, itemId: String, before: TodoItem) {
+        mutate(listId) { items -> items.updateItem(itemId) { it.withDoneFrom(before) } }
     }
 
     override suspend fun setItemText(listId: String, itemId: String, text: String) {

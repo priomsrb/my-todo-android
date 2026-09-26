@@ -70,6 +70,15 @@ interface TodoRepository {
 
     suspend fun setItemDone(listId: String, itemId: String, done: Boolean)
 
+    /** Ticks (or unticks) an item together with every item beneath it. */
+    suspend fun setSubtreeDone(listId: String, itemId: String, done: Boolean)
+
+    /**
+     * Puts back the ticks an item and its descendants had in [before], a copy of it taken earlier —
+     * the undo for [setSubtreeDone]. Parts of the subtree that have changed shape since are left.
+     */
+    suspend fun restoreSubtreeDone(listId: String, itemId: String, before: TodoItem)
+
     suspend fun setItemText(listId: String, itemId: String, text: String)
 
     /** Removes an item together with its entire subtree. */

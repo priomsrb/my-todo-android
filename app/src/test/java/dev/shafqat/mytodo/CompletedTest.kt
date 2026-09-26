@@ -5,6 +5,8 @@ import dev.shafqat.mytodo.model.completedLast
 import dev.shafqat.mytodo.model.flattenVisible
 import dev.shafqat.mytodo.model.hasCompleted
 import dev.shafqat.mytodo.model.totalCount
+import dev.shafqat.mytodo.model.withDoneFrom
+import dev.shafqat.mytodo.model.withSubtreeDone
 import dev.shafqat.mytodo.model.withoutCompleted
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -138,5 +140,43 @@ class CompletedTest {
     fun `hasCompleted sees a tick at any depth`() {
         assertTrue(tree.hasCompleted())
         assertFalse(tree.withoutCompleted().let { listOf(it[2]) }.hasCompleted())
+    }
+
+    // --- ticking a subtree as one ----------------------------------------------------------
+
+    private fun TodoItem.ticks(): String =
+        listOf(this).flattenVisible().joinToString(" ") { "${it.item.id}=${if (it.item.done) "x" else "-"}" }
+
+    @Test
+    fun `ticking a subtree ticks every item in it, at any depth`() {
+        val nested = tree[0].copy(
+            done = false,
+            children = tree[0].children + TodoItem(
+                id = "eggs", text = "Eggs",
+                children = listOf(TodoItem(id = "free", text = "Free range")),
+            ),
+        )
+
+        assertEquals("shop=x milk=x bread=x eggs=x free=x", nested.withSubtreeDone(true).ticks())
+    }
+
+    @Test
+    fun `restoring puts back each tick the subtree had, keeping the ids it has now`() {
+        val before = tree[0].copy(done = false)
+        val ticked = before.withSubtreeDone(true)
+
+        val restored = ticked.withDoneFrom(before)
+
+        assertEquals("shop=- milk=x bread=-", restored.ticks())
+        assertEquals(before, restored)
+    }
+
+    @Test
+    fun `a level that changed shape since keeps the ticks it has`() {
+        val before = tree[0].copy(done = false)
+        val ticked = before.withSubtreeDone(true)
+        val edited = ticked.copy(children = ticked.children + TodoItem(id = "jam", text = "Jam", done = true))
+
+        assertEquals("shop=- milk=x bread=x jam=x", edited.withDoneFrom(before).ticks())
     }
 }

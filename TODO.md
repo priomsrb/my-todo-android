@@ -279,6 +279,18 @@ Worth knowing before Phase 6:
       the file as it was, and a second tick releases the first. The app's own list screen still
       hides a ticked item at once — reuse `visibleItemsKeeping` there if that proves annoying too
 
+## Phase 6h — A top-level tick takes its subtree ✅
+
+- [x] With the widgets showing top-level items only, ticking a row ticks everything beneath it too
+      (`withSubtreeDone`): the row is all there is of that subtree on the home screen. This replaces
+      6f's "a tick is still just that item's tick" for that mode; the full widget and the app are
+      unchanged
+- [x] Unticking it while `RecentlyTicked` still holds it restores each descendant's own tick
+      (`withDoneFrom`, matched by position and text) instead of leaving them all done or clearing
+      them. After the hold it unticks the row alone and leaves the children as they are
+- [x] Checked on the emulator, file included: tick cascades to every depth, a quick second tap puts
+      back exactly the ticks there were, a second tap after 4s unticks only the parent
+
 ## Phase 7 — Robustness and extras
 
 - [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers

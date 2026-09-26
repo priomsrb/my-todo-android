@@ -124,7 +124,7 @@ private fun ListWidgetContent(list: TodoList, topLevelOnly: Boolean, heldKey: St
             } else {
                 LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                     items(rows, itemId = { it.key.hashCode().toLong() }) { row ->
-                        WidgetItemRow(listId = list.id, row = row)
+                        WidgetItemRow(listId = list.id, row = row, cascade = topLevelOnly)
                     }
                     // The buttons float over the foot of the list, so without this the last
                     // item could never be scrolled out from under them.
@@ -254,16 +254,20 @@ private fun ListWidgetHeader(list: TodoList, topLevelOnly: Boolean) {
  * much, outside the text so a ticked parent's count is not struck through with it: the tick is the
  * parent's, the count is what is still open under it.
  *
+ * In that mode a tick also [cascades][ToggleItemAction] to the folded subtree: the row is all
+ * there is of it on the home screen.
+ *
  * A row with no text draws as a blank one, as it does in the app: those are the separators the
  * user typed, and naming them would turn every gap in the list into a line of its own.
  */
 @Composable
-private fun WidgetItemRow(listId: String, row: WidgetRow) {
+private fun WidgetItemRow(listId: String, row: WidgetRow, cascade: Boolean) {
     val toggle = actionRunCallback<ToggleItemAction>(
         ToggleItemAction.parameters(
             listId = listId,
             itemKey = row.key,
             targetDone = !row.done,
+            cascade = cascade,
         ),
     )
     Row(

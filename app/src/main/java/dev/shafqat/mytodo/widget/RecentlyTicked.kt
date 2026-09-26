@@ -1,5 +1,6 @@
 package dev.shafqat.mytodo.widget
 
+import dev.shafqat.mytodo.model.TodoItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -20,6 +21,10 @@ import kotlinx.coroutines.launch
  * Only one item is ever held, identified by its [dev.shafqat.mytodo.data.collapse.CollapseKeys] key
  * (which names its file too), since ids do not survive the reload a widget redraw brings. This is
  * view state and lives in memory alone: if the process dies the item simply hides, as it used to.
+ *
+ * A tick that took a whole subtree with it — a widget showing top-level items only — also leaves
+ * the subtree as it was before, so unticking it while it is held puts each child back how it was
+ * rather than leaving them all done or clearing them all. Once the hold ends, so does that undo.
  */
 class RecentlyTicked(
     private val scope: CoroutineScope,
@@ -34,26 +39,46 @@ class RecentlyTicked(
 
     private var releaseJob: Job? = null
 
-    /** Records a tick from a widget: [done] holds the item, un-ticking lets it go. */
+    /** The held item's subtree as it was before its tick, when the tick took the subtree along. */
+    private var before: TodoItem? = null
+
+    /**
+     * Records a tick from a widget: [done] holds the item, un-ticking lets it go. [before] is the
+     * item as it stood before a tick that cascaded to its children, for [before] to hand back.
+     */
     @Synchronized
-    fun ticked(itemKey: String, done: Boolean) {
+    fun ticked(itemKey: String, done: Boolean, before: TodoItem? = null) {
         if (!done) {
             if (_key.value == itemKey) release()
             return
         }
         releaseJob?.cancel()
         _key.value = itemKey
+        this.before = before
         releaseJob = scope.launch {
             delay(holdMillis)
             // Only if nothing has been ticked since; a later tick owns the hold now.
-            if (_key.compareAndSet(itemKey, null)) onReleased()
+            if (releaseIfHeld(itemKey)) onReleased()
         }
+    }
+
+    /** What [itemKey]'s subtree looked like before its tick, if it is still held and had one. */
+    @Synchronized
+    fun before(itemKey: String): TodoItem? = if (_key.value == itemKey) before else null
+
+    @Synchronized
+    private fun releaseIfHeld(itemKey: String): Boolean {
+        if (_key.value != itemKey) return false
+        _key.value = null
+        before = null
+        return true
     }
 
     private fun release() {
         releaseJob?.cancel()
         releaseJob = null
         _key.value = null
+        before = null
     }
 
     companion object {

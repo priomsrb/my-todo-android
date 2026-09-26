@@ -531,13 +531,20 @@ app/src/test/java/dev/shafqat/mytodo/
   item had its box halfway down it. The row is top-aligned, the text is nudged down by a measured
   inset to sit level with the box, and it carries the same toggle so the whole row is still the tap
   target.
-- **A hidden subtree is shown as a count, and a tick stays one item's tick.** Each top-level row
-  carries `hiddenOpenCount` — unfinished, non-blank items at any depth beneath it — drawn beside the
-  checkbox rather than in its text, so a ticked parent's strikethrough does not run through it. A
-  parent ticked with open children therefore reads done *and* "· 2": the widget does not cascade a
-  tick the app would not, and the count is what keeps the parent from passing as finished. The
-  header's done/total switches to top-level items (`widgetProgress`) so it describes the rows
-  under it.
+- **A hidden subtree is shown as a count, and a tick takes the subtree with it.** Each top-level
+  row carries `hiddenOpenCount` — unfinished, non-blank items at any depth beneath it — drawn beside
+  the checkbox rather than in its text, so a ticked parent's strikethrough does not run through it.
+  In this mode alone a tick cascades (`setSubtreeDone`, flagged by the row's `cascade` action
+  parameter): the row is all there is of that subtree on the home screen, so there is nowhere else
+  to tick its children from. The count is still what shows a parent whose children were left open
+  by an edit in the app. The header's done/total switches to top-level items (`widgetProgress`) so
+  it describes the rows under it.
+- **Unticking a cascaded tick is an undo, not a second cascade.** `RecentlyTicked` keeps the
+  subtree as it was before the tick for as long as it holds the row, and an untick in that window
+  hands it to `restoreSubtreeDone`, which puts each descendant's own tick back (matched by position
+  and text, so a level that has changed since is left alone). After the hold only the row itself
+  is unticked; the children stay as they are, since clearing them would throw away ticks the user
+  made one by one.
 - **A tick is held in view for a moment before hide-completed takes it.** `RecentlyTicked` (owned
   by `MyTodoApplication`) remembers the last item ticked from a widget, by key, for 4 seconds or
   until the next tick, and `widgetRows(heldKey = …)` keeps it drawn — struck through, in place —
@@ -545,6 +552,8 @@ app/src/test/java/dev/shafqat/mytodo/
   It is recorded *before* the write, so the redraw the write causes already holds it; the timer
   runs on the application scope, not in the action callback, and redraws the widgets when it lets
   go. Memory only: a process death just lets the item hide, which is the old behaviour.
+  Test this by tapping twice in quick succession — a `uiautomator dump` between the taps takes
+  long enough to outlast the hold.
 - **The list widget's corner carries two buttons: a mic and a "+".** The mic is the voice tile's
   press, same intent and same activity. The "+" opens the list in the app with an empty item already
   waiting at the top — the other half of the same idea, for when dictation is the wrong tool. They

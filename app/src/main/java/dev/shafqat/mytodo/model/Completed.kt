@@ -39,3 +39,34 @@ fun List<TodoItem>.completedLast(): List<TodoItem> {
 
 /** True when any item anywhere in the tree is ticked off. */
 fun List<TodoItem>.hasCompleted(): Boolean = any { it.done || it.children.hasCompleted() }
+
+/**
+ * This item and everything beneath it, ticked off (or not) as one.
+ *
+ * What a widget showing top-level items alone does with a tick: the row stands for the whole
+ * subtree, since nothing under it has a row of its own to be ticked from.
+ */
+fun TodoItem.withSubtreeDone(done: Boolean): TodoItem =
+    copy(done = done, children = children.map { it.withSubtreeDone(done) })
+
+/**
+ * This item with the ticks it had in [before] put back, at every depth, keeping the ids it has now.
+ *
+ * The undo for [withSubtreeDone]: unticking a parent that was just ticked as a whole returns each
+ * child to what it was, rather than leaving them all done or clearing them all. Children are
+ * matched by position and text; where they no longer line up with [before] — something added,
+ * removed or renamed in between — that level keeps the ticks it has, since a snapshot that no longer
+ * describes the list would put ticks on the wrong items.
+ */
+fun TodoItem.withDoneFrom(before: TodoItem): TodoItem {
+    val sameShape = children.size == before.children.size &&
+        children.zip(before.children).all { (now, then) -> now.text == then.text }
+    return copy(
+        done = before.done,
+        children = if (sameShape) {
+            children.zip(before.children) { now, then -> now.withDoneFrom(then) }
+        } else {
+            children
+        },
+    )
+}

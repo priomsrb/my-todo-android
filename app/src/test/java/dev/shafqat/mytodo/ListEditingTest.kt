@@ -73,6 +73,24 @@ class ListEditingTest {
     private fun MarkdownTodoRepository.idOf(text: String): String =
         lists.value.single().items.flattenVisible().first { it.item.text == text }.item.id
 
+    // --- ticking a whole subtree -----------------------------------------------------------
+
+    @Test
+    fun `ticking a subtree reaches every item in it, and undoing it puts each tick back`() =
+        runTest {
+            File(folder, "list.md").writeText("- [ ] A\n\t- [X] A1\n\t- [ ] A2\n\t\t- [ ] A2a\n- [ ] B\n")
+            val repository = loaded()
+            val before = repository.lists.value.single().items.first()
+
+            repository.setSubtreeDone("list.md", repository.idOf("A"), done = true)
+            advanceUntilIdle()
+            assertEquals("- [X] A\n\t- [X] A1\n\t- [X] A2\n\t\t- [X] A2a\n- [ ] B\n", read())
+
+            repository.restoreSubtreeDone("list.md", repository.idOf("A"), before)
+            advanceUntilIdle()
+            assertEquals("- [ ] A\n\t- [X] A1\n\t- [ ] A2\n\t\t- [ ] A2a\n- [ ] B\n", read())
+        }
+
     // --- inline entry ----------------------------------------------------------------------
 
     @Test

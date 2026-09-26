@@ -1,5 +1,6 @@
 package dev.shafqat.mytodo
 
+import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.widget.RecentlyTicked
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -69,5 +70,29 @@ class RecentlyTickedTest {
         held.ticked("b", done = false)
 
         assertEquals("a", held.key.value)
+    }
+
+    @Test
+    fun `the subtree as it was is handed back only while its item is held`() = runTest {
+        val held = ticked()
+        val before = TodoItem(id = "a", text = "A", children = listOf(TodoItem(text = "A1", done = true)))
+
+        held.ticked("a", done = true, before = before)
+        assertEquals(before, held.before("a"))
+        assertNull(held.before("b"))
+
+        advanceTimeBy(4_001)
+        assertNull(held.before("a"))
+    }
+
+    @Test
+    fun `ticking something else drops the earlier snapshot`() = runTest {
+        val held = ticked()
+
+        held.ticked("a", done = true, before = TodoItem(id = "a", text = "A"))
+        held.ticked("b", done = true)
+        held.ticked("a", done = true)
+
+        assertNull(held.before("a"))
     }
 }
