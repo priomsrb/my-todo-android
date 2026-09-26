@@ -85,6 +85,7 @@ refuse to compile against 36.
 ./gradlew :app:testDebugUnitTest      # all tests: pure logic + Compose UI (Robolectric)
 ./gradlew :app:installDebug           # install onto a running device/emulator
 ./gradlew :app:lintDebug              # Android lint
+scripts/install-phone.sh              # build + install onto the USB phone only, keep data, launch
 ```
 
 Run on the emulator:
