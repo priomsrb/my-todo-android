@@ -29,6 +29,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { app.settings.setSwipeToDeleteEnabled(enabled) }
     }
 
+    val widgetTopLevelOnly: StateFlow<Boolean> = app.settings.widgetTopLevelOnly
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setWidgetTopLevelOnly(enabled: Boolean) {
+        viewModelScope.launch { app.settings.setWidgetTopLevelOnly(enabled) }
+    }
+
     val copyFormat: StateFlow<CopyFormat> = app.settings.copyFormat
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CopyFormat.Default)
 

@@ -51,6 +51,7 @@ fun SettingsScreen(
     val folderUri by viewModel.folderUri.collectAsStateWithLifecycle()
     val swipeToDeleteEnabled by viewModel.swipeToDeleteEnabled.collectAsStateWithLifecycle()
     val copyFormat by viewModel.copyFormat.collectAsStateWithLifecycle()
+    val widgetTopLevelOnly by viewModel.widgetTopLevelOnly.collectAsStateWithLifecycle()
     var showCopyFormatDialog by remember { mutableStateOf(false) }
 
     val folderPicker = rememberLauncherForActivityResult(
@@ -118,6 +119,13 @@ fun SettingsScreen(
                 title = stringResource(R.string.copy_format),
                 subtitle = copyFormatSummary(copyFormat),
                 onClick = { showCopyFormatDialog = true },
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            SettingSwitchRow(
+                title = stringResource(R.string.widget_top_level_only),
+                subtitle = stringResource(R.string.widget_top_level_only_summary),
+                checked = widgetTopLevelOnly,
+                onCheckedChange = viewModel::setWidgetTopLevelOnly,
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             SettingRow(

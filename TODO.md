@@ -255,6 +255,19 @@ Worth knowing before Phase 6:
 - [x] Checked on the emulator by pasting back: both formats, the nesting, a blank parent keeping its
       line so its child keeps its level, and a hidden completed item staying out of the copy
 
+## Phase 6f — Top-level-only widgets ✅
+
+- [x] A setting (off by default) that has every list widget show only a list's top-level items.
+      One global switch in Settings rather than per widget or per list: it is about how much fits
+      on a home screen, not about which list is on it. Flipping it redraws the widgets at once
+- [x] A parent with unfinished work beneath it says how much, as a muted `· 3` beside the row —
+      counting open items at every depth, and skipping blank rows, which are gaps rather than work
+- [x] The header's done/total counts top-level items only while this is on, so it describes the
+      rows under it
+- [x] A tick is still just that item's tick, as in the app: a parent ticked with open children reads
+      done *and* keeps its count, so it does not pass for finished. Hide-completed keeps it on the
+      widget for the same reason it keeps it in the app. Checked on the emulator, file included
+
 ## Phase 7 — Robustness and extras
 
 - [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers

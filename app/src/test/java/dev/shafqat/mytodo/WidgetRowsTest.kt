@@ -9,6 +9,7 @@ import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.widget.newItemIntent
 import dev.shafqat.mytodo.widget.openListIntent
+import dev.shafqat.mytodo.widget.widgetProgress
 import dev.shafqat.mytodo.widget.widgetRows
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -69,6 +70,75 @@ class WidgetRowsTest {
         val hiding = list.copy(prefs = ListPrefs(hideCompleted = true))
 
         assertEquals(listOf("Shop", "Bread"), hiding.widgetRows().map { it.text })
+    }
+
+    // --- top-level only -------------------------------------------------------------------
+
+    @Test
+    fun `top-level only draws the top of the tree, each with the open work beneath it`() {
+        val rows = list.widgetRows(topLevelOnly = true)
+
+        assertEquals(listOf("Shop", "Chores"), rows.map { it.text })
+        assertEquals(listOf(0, 0), rows.map { it.depth })
+        // Milk is done, Bread is not.
+        assertEquals(listOf(1, 0), rows.map { it.hiddenOpenCount })
+    }
+
+    @Test
+    fun `a ticked parent stays ticked and still counts what is open beneath it`() {
+        val ticked = list.copy(
+            items = list.items.map { if (it.id == "shop") it.copy(done = true) else it },
+        )
+
+        val shop = ticked.widgetRows(topLevelOnly = true).first()
+        assertEquals(true, shop.done)
+        assertEquals(1, shop.hiddenOpenCount)
+    }
+
+    @Test
+    fun `the open count reaches every level and skips blank rows`() {
+        val deep = TodoList(
+            fileName = "deep.md",
+            items = listOf(
+                TodoItem(
+                    id = "a", text = "A",
+                    children = listOf(
+                        TodoItem(
+                            id = "b", text = "B", done = true,
+                            children = listOf(TodoItem(id = "c", text = "C")),
+                        ),
+                        TodoItem(id = "gap", text = ""),
+                        TodoItem(id = "d", text = "D"),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(listOf(2), deep.widgetRows(topLevelOnly = true).map { it.hiddenOpenCount })
+    }
+
+    @Test
+    fun `top-level only ignores collapse but still hides finished items`() {
+        val collapsedAndHiding = list.copy(
+            items = list.items.map { if (it.id == "shop") it.copy(collapsed = true) else it },
+            prefs = ListPrefs(hideCompleted = true),
+        )
+
+        assertEquals(listOf("Shop"), collapsedAndHiding.widgetRows(topLevelOnly = true).map { it.text })
+    }
+
+    @Test
+    fun `top-level rows resolve back to their items`() {
+        list.widgetRows(topLevelOnly = true).forEach { row ->
+            val id = CollapseKeys.idOf(list.items, list.fileName, row.key)
+            assertEquals(row.text, list.items.first { it.id == id }.text)
+        }
+    }
+
+    @Test
+    fun `the header counts only top-level items when that is all that is shown`() {
+        assertEquals(1 to 2, list.widgetProgress(topLevelOnly = true))
+        assertEquals(2 to 4, list.widgetProgress(topLevelOnly = false))
     }
 
     // --- identity ---------------------------------------------------------------------------

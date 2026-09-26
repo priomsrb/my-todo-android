@@ -167,11 +167,13 @@ app/src/main/java/dev/shafqat/mytodo/
       TodoFileStore.kt       the only seam that knows where files physically live
       LocalDirectoryStore.kt app-private default; also stands in for storage in tests
       SafDirectoryStore.kt   a folder the user picked, via a persisted tree URI
-    settings/                DataStore: SettingsRepository (folder URI, swipe-to-delete, copy format),
+    settings/                DataStore: SettingsRepository (folder URI, swipe-to-delete, copy format,
+                             widgets top-level only),
                              DataStoreCollapseStore (collapse state),
                              DataStoreListPrefsStore (per-list colour, hide-completed)
   widget/
-    ListWidget.kt            5a: one list, ticked off from the home screen; mic and + in the corner
+    ListWidget.kt            5a: one list, ticked off from the home screen; mic and + in the corner;
+                             optionally its top-level items only
     LauncherWidget.kt        5b: every list, tap to open one
     VoiceWidget.kt           5c: a 1x1 tile that is only a button — press, speak, it is on the list
     VoiceCaptureActivity.kt  the transparent overlay: dictation sheet, then a confirmation + undo
@@ -189,7 +191,8 @@ app/src/main/java/dev/shafqat/mytodo/
                              TodoDragState (drag, depth, auto-scroll),
                              ItemEditToolbar (indent/outdent above the keyboard)
     search/                  search across every list
-    settings/                folder picker, storage state, swipe-to-delete, copy format, about rows
+    settings/                folder picker, storage state, swipe-to-delete, copy format,
+                             widgets top-level only, about rows
     components/              shared composables (TextInputDialog, AddFromTextDialog,
                              ColorPickerDialog, CopyFormatDialog, EmptyState, Clipboard)
     theme/                   Keep-ish palette, typography, note tints
@@ -208,7 +211,7 @@ app/src/test/java/dev/shafqat/mytodo/
   ListEditingTest.kt         the Phase 4 edits as they reach the file, plus list prefs
   TodoItemListUiTest.kt      Compose: dragging rows (Robolectric)
   TodoItemEditingUiTest.kt   Compose: inline entry, Enter/Backspace/Tab, swipe-to-delete
-  WidgetRowsTest.kt          widget rows, key round-trips and deep-link intents
+  WidgetRowsTest.kt          widget rows (full and top-level only), key round-trips, deep-link intents
   DictationTest.kt           where a dictated sentence is and is not cut into several items
   TextImportTest.kt          the formats a paste may arrive in, and the nesting it must not invent
   TextExportTest.kt          what a copy puts on the clipboard, and its round trip back in
@@ -508,6 +511,19 @@ app/src/test/java/dev/shafqat/mytodo/
   widget exists and treats a cancelled result as "do not place it". Both per-list widgets share the
   base class rather than each restating that contract; a subclass supplies only the widget to
   redraw and the title to ask under.
+- **"Top-level only" is one global setting** (`widgetTopLevelOnly`, settings DataStore, default
+  off), not a per-widget or per-list one: it follows from how much fits on a home screen. The
+  widget reads it when it draws, so `MyTodoApplication` redraws every widget when it changes — the
+  lists did not change, so nothing else would. `widgetRows(topLevelOnly = true)` still keys from
+  the whole tree and still respects hide-completed; collapse is moot, since nothing below the top
+  is drawn.
+- **A hidden subtree is shown as a count, and a tick stays one item's tick.** Each top-level row
+  carries `hiddenOpenCount` — unfinished, non-blank items at any depth beneath it — drawn beside the
+  checkbox rather than in its text, so a ticked parent's strikethrough does not run through it. A
+  parent ticked with open children therefore reads done *and* "· 2": the widget does not cascade a
+  tick the app would not, and the count is what keeps the parent from passing as finished. The
+  header's done/total switches to top-level items (`widgetProgress`) so it describes the rows
+  under it.
 - **The list widget's corner carries two buttons: a mic and a "+".** The mic is the voice tile's
   press, same intent and same activity. The "+" opens the list in the app with an empty item already
   waiting at the top — the other half of the same idea, for when dictation is the wrong tool. They

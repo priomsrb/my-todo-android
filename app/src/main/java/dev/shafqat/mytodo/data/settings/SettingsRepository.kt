@@ -81,10 +81,26 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { preferences -> preferences[COPY_FORMAT] = format.name }
     }
 
+    /**
+     * Whether the list widget shows only a list's top-level items rather than the whole tree.
+     *
+     * One switch for every list widget: it follows from how big a widget is and what someone
+     * glances at a home screen for, not from which list is on it. Off by default, so a widget shows
+     * what the app shows.
+     */
+    val widgetTopLevelOnly: Flow<Boolean> = context.dataStore.data
+        .map { it[WIDGET_TOP_LEVEL_ONLY] ?: false }
+        .distinctUntilChanged()
+
+    suspend fun setWidgetTopLevelOnly(enabled: Boolean) {
+        context.dataStore.edit { preferences -> preferences[WIDGET_TOP_LEVEL_ONLY] = enabled }
+    }
+
     private companion object {
         val TODO_FOLDER_URI = stringPreferencesKey("todo_folder_uri")
         val SWIPE_TO_DELETE = booleanPreferencesKey("swipe_to_delete")
         val ADD_FROM_TEXT_AT_TOP = booleanPreferencesKey("add_from_text_at_top")
         val COPY_FORMAT = stringPreferencesKey("copy_format")
+        val WIDGET_TOP_LEVEL_ONLY = booleanPreferencesKey("widget_top_level_only")
     }
 }

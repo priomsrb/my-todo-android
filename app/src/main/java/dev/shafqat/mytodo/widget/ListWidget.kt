@@ -46,8 +46,8 @@ import androidx.glance.text.TextDecoration
 import androidx.glance.text.TextStyle
 import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.TodoList
-import dev.shafqat.mytodo.model.doneCount
-import dev.shafqat.mytodo.model.totalCount
+import dev.shafqat.mytodo.todoApp
+import kotlinx.coroutines.flow.first
 
 /**
  * One list on the home screen: its items, scrollable, ticked off in place.
@@ -65,6 +65,8 @@ class ListWidget : GlanceAppWidget() {
         // be looking at a file edited somewhere else, so it reads from disk before drawing.
         // refresh() leaves files with an unsaved edit alone, so this cannot undo recent typing.
         repository?.refresh()
+        val settings = context.todoApp.settings
+        val initialTopLevelOnly = settings.widgetTopLevelOnly.first()
 
         provideContent {
             GlanceTheme(colors = WidgetColors) {
@@ -74,12 +76,14 @@ class ListWidget : GlanceAppWidget() {
                 } else {
                     val listId = currentState(ListIdKey)
                     val lists by repository.lists.collectAsState()
+                    val topLevelOnly by settings.widgetTopLevelOnly
+                        .collectAsState(initial = initialTopLevelOnly)
                     val list = lists.firstOrNull { it.id == listId }
 
                     if (list == null) {
                         WidgetMessage(context.getString(R.string.widget_list_missing))
                     } else {
-                        ListWidgetContent(list)
+                        ListWidgetContent(list, topLevelOnly)
                     }
                 }
             }
@@ -92,9 +96,9 @@ class ListWidget : GlanceAppWidget() {
 }
 
 @Composable
-private fun ListWidgetContent(list: TodoList) {
+private fun ListWidgetContent(list: TodoList, topLevelOnly: Boolean) {
     val context = LocalContext.current
-    val rows = list.widgetRows()
+    val rows = list.widgetRows(topLevelOnly)
 
     Box(
         modifier = GlanceModifier
@@ -105,7 +109,7 @@ private fun ListWidgetContent(list: TodoList) {
         contentAlignment = Alignment.BottomEnd,
     ) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
-            ListWidgetHeader(list)
+            ListWidgetHeader(list, topLevelOnly)
 
             if (rows.isEmpty()) {
                 Text(
@@ -205,8 +209,9 @@ private val ActionRowHeight = ActionButtonSize
 
 /** The list's name and how much of it is done. Tapping it opens that list in the app. */
 @Composable
-private fun ListWidgetHeader(list: TodoList) {
+private fun ListWidgetHeader(list: TodoList, topLevelOnly: Boolean) {
     val context = LocalContext.current
+    val (done, total) = list.widgetProgress(topLevelOnly)
 
     Row(
         modifier = GlanceModifier
@@ -226,7 +231,7 @@ private fun ListWidgetHeader(list: TodoList) {
             modifier = GlanceModifier.defaultWeight(),
         )
         Text(
-            text = "${list.items.doneCount()}/${list.items.totalCount()}",
+            text = "$done/$total",
             style = TextStyle(
                 color = GlanceTheme.colors.onSurfaceVariant,
                 fontSize = WidgetCaptionSize,
@@ -238,11 +243,37 @@ private fun ListWidgetHeader(list: TodoList) {
 /**
  * One item: a real checkbox, indented to show where it sits in the tree.
  *
+ * When the widget shows top-level items only, a row with unfinished work folded beneath it says how
+ * much, outside the checkbox's text so a ticked parent's count is not struck through with it: the
+ * tick is the parent's, the count is what is still open under it.
+ *
  * A row with no text draws as a blank one, as it does in the app: those are the separators the
  * user typed, and naming them would turn every gap in the list into a line of its own.
  */
 @Composable
 private fun WidgetItemRow(listId: String, row: WidgetRow) {
+    Row(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .padding(start = WidgetIndentPerLevel * row.depth),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        WidgetItemCheckBox(listId, row, GlanceModifier.defaultWeight())
+        if (row.hiddenOpenCount > 0) {
+            Text(
+                text = "· ${row.hiddenOpenCount}",
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    fontSize = WidgetCaptionSize,
+                ),
+                modifier = GlanceModifier.padding(start = 4.dp, end = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WidgetItemCheckBox(listId: String, row: WidgetRow, modifier: GlanceModifier) {
     CheckBox(
         checked = row.done,
         onCheckedChange = actionRunCallback<ToggleItemAction>(
@@ -267,9 +298,7 @@ private fun WidgetItemRow(listId: String, row: WidgetRow) {
             uncheckedColor = GlanceTheme.colors.outline,
         ),
         maxLines = 2,
-        modifier = GlanceModifier
-            .fillMaxWidth()
-            .padding(start = WidgetIndentPerLevel * row.depth),
+        modifier = modifier,
     )
 }
 

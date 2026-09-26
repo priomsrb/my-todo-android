@@ -53,6 +53,11 @@ class MyTodoApplication : Application() {
             settings.todoFolderUri.collectLatest { folderUri -> attachStore(folderUri) }
         }
         applicationScope.launch { keepWidgetsInStep() }
+        // The widgets read this setting when they draw, so a change has to redraw them. The first
+        // value is only the stored one being read.
+        applicationScope.launch {
+            settings.widgetTopLevelOnly.drop(1).collectLatest { updateTodoWidgets() }
+        }
     }
 
     /**
