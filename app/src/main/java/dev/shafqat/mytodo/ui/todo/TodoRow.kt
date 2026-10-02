@@ -8,7 +8,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,7 +73,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.shafqat.mytodo.R
+import dev.shafqat.mytodo.model.DividerStyle
 import dev.shafqat.mytodo.model.TodoItem
+import dev.shafqat.mytodo.model.dividerOf
 import dev.shafqat.mytodo.model.totalCount
 import kotlinx.coroutines.flow.first
 
@@ -269,7 +274,42 @@ fun TodoRow(
             var touch by remember { mutableStateOf<Offset?>(null) }
             val textTop = with(LocalDensity.current) { TextTopPadding.toPx() }
 
-            Text(
+            val divider = dividerOf(item.text)
+            if (divider != null) {
+                val lineHeight = with(LocalDensity.current) {
+                    MaterialTheme.typography.bodyLarge.lineHeight.toDp()
+                }
+                val ink = if (item.done) {
+                    MaterialTheme.colorScheme.outlineVariant
+                } else {
+                    MaterialTheme.colorScheme.outline
+                }
+                val rule: @Composable (Modifier) -> Unit = { m ->
+                    Column(m, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        HorizontalDivider(color = ink)
+                        if (divider.style == DividerStyle.Double) HorizontalDivider(color = ink)
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onStartEdit(null) }
+                        .padding(top = TextTopPadding, bottom = TextBottomPadding)
+                        .height(lineHeight),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    rule(Modifier.weight(1f))
+                    if (divider.label.isNotEmpty()) {
+                        Text(
+                            text = divider.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                        rule(Modifier.weight(1f))
+                    }
+                }
+            } else Text(
                 text = item.text,
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (item.done) {

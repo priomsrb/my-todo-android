@@ -436,6 +436,13 @@ app/src/test/java/dev/shafqat/mytodo/
   item sat *before* deleting it; anything less puts the item back at the end of the list, which is
   not undoing anything.
 
+## Dividers
+
+- **An item that starts and ends with `-` (or `=`) is drawn as a rule** with its text in the middle
+  — one line for `-`, two for `=`. `dividerOf` in `model/Divider.kt` is pure and tested. It is a
+  view only: the file keeps the text as typed, and tapping the row edits it. Widgets still show the
+  raw text.
+
 ## Completed items, colour and view options
 
 - **Hiding finished items is a view; moving them to the bottom is an edit.** `withoutCompleted()`

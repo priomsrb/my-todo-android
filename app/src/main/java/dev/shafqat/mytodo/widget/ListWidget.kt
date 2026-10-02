@@ -45,7 +45,10 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextDecoration
 import androidx.glance.text.TextStyle
 import dev.shafqat.mytodo.R
+import dev.shafqat.mytodo.model.Divider
+import dev.shafqat.mytodo.model.DividerStyle
 import dev.shafqat.mytodo.model.TodoList
+import dev.shafqat.mytodo.model.dividerOf
 import dev.shafqat.mytodo.todoApp
 import kotlinx.coroutines.flow.first
 
@@ -286,23 +289,34 @@ private fun WidgetItemRow(listId: String, row: WidgetRow, cascade: Boolean) {
                 uncheckedColor = GlanceTheme.colors.outline,
             ),
         )
-        Text(
-            text = row.text,
-            style = TextStyle(
-                color = if (row.done) {
-                    GlanceTheme.colors.onSurfaceVariant
-                } else {
-                    GlanceTheme.colors.onSurface
-                },
-                fontSize = WidgetBodySize,
-                textDecoration = if (row.done) TextDecoration.LineThrough else TextDecoration.None,
-            ),
-            maxLines = 2,
-            modifier = GlanceModifier
-                .defaultWeight()
-                .padding(top = WidgetFirstLineInset)
-                .clickable(actionStartActivity(openItemIntent(context, listId, row.key))),
-        )
+        val divider = dividerOf(row.text)
+        if (divider != null) {
+            WidgetDivider(
+                divider = divider,
+                done = row.done,
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .clickable(actionStartActivity(openItemIntent(context, listId, row.key))),
+            )
+        } else {
+            Text(
+                text = row.text,
+                style = TextStyle(
+                    color = if (row.done) {
+                        GlanceTheme.colors.onSurfaceVariant
+                    } else {
+                        GlanceTheme.colors.onSurface
+                    },
+                    fontSize = WidgetBodySize,
+                    textDecoration = if (row.done) TextDecoration.LineThrough else TextDecoration.None,
+                ),
+                maxLines = 2,
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .padding(top = WidgetFirstLineInset)
+                    .clickable(actionStartActivity(openItemIntent(context, listId, row.key))),
+            )
+        }
         if (row.hiddenOpenCount > 0) {
             Text(
                 text = "· ${row.hiddenOpenCount}",
@@ -315,6 +329,42 @@ private fun WidgetItemRow(listId: String, row: WidgetRow, cascade: Boolean) {
         }
     }
 }
+
+/** A divider row: a rule (two for `=`), the label, and a rule again, level with the checkbox. */
+@Composable
+private fun WidgetDivider(divider: Divider, done: Boolean, modifier: GlanceModifier) {
+    val ink = if (done) GlanceTheme.colors.onSurfaceVariant else GlanceTheme.colors.outline
+    @Composable
+    fun Rule(m: GlanceModifier) {
+        Column(modifier = m) {
+            Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(ink)) {}
+            if (divider.style == DividerStyle.Double) {
+                Spacer(GlanceModifier.height(3.dp))
+                Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(ink)) {}
+            }
+        }
+    }
+    Row(
+        modifier = modifier.height(WidgetDividerHeight),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Rule(GlanceModifier.defaultWeight())
+        if (divider.label.isNotEmpty()) {
+            Text(
+                text = divider.label,
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    fontSize = WidgetCaptionSize,
+                ),
+                maxLines = 1,
+                modifier = GlanceModifier.padding(horizontal = 8.dp),
+            )
+            Rule(GlanceModifier.defaultWeight())
+        }
+    }
+}
+
+private val WidgetDividerHeight = 48.dp
 
 /**
  * How far an item's text sits below the top of its row, so its first line reads as level with the
