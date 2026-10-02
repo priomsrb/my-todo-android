@@ -50,7 +50,9 @@ One list per markdown file, inside a single folder the user picks in settings.
 - Unchecked is `- [ ]`, checked is `- [X]` (uppercase on write; accept `x` on read).
 - The list name comes from the filename alone (`groceries.md` → "Groceries"), so renaming a list
   renames its file. Never read a list's name from a `# Heading`, and never write one into the file.
-- Completed items stay in the file as `- [X]`; nothing is archived out of it.
+- Completed items stay in the file as `- [X]` until the user archives them. "Archive completed" moves
+  finished subtrees to a sibling `<list>.archive.md` (same format); nothing else ever leaves the file.
+  Archive files are never shown as lists.
 - Preserve lines the app does not understand rather than dropping them, so hand-edited files
   survive a round trip.
 
@@ -172,7 +174,7 @@ app/src/main/java/dev/shafqat/mytodo/
     TodoList.kt              one named list, backed by one markdown file
     ListPrefs.kt             per-list colour and view options — local, never in the file
     TreeMove.kt              flatten/rebuild, moveSubtree, insert/indent/outdent — the move maths
-    Completed.kt             hiding finished items (a view) and sinking them (an edit)
+    Completed.kt             hiding finished items (a view), sinking them and splitting them out for the archive (edits)
     Search.kt                matching items across every list
     Dictation.kt             cutting a dictated sentence into the items it names
     TextImport.kt            reading pasted text — bullets, numbers, checkboxes — as items
@@ -229,6 +231,7 @@ app/src/test/java/dev/shafqat/mytodo/
   DragOverlayTest.kt         where the floating row is drawn relative to its slot
   OutlineEditTest.kt         indent/outdent and putting a deleted subtree back
   CompletedTest.kt           hiding finished items vs. sinking them
+  ArchiveTest.kt             archiving to the sibling file, restoring, undo, rename/delete following the list
   SearchTest.kt              matching across lists
   ListEditingTest.kt         the Phase 4 edits as they reach the file, plus list prefs
   TodoItemListUiTest.kt      Compose: dragging rows (Robolectric)
@@ -451,6 +454,23 @@ app/src/test/java/dev/shafqat/mytodo/
 - **A list with no colour of its own takes the tint of its position in the grid**, so a new folder
   still looks like Keep's wall of coloured notes. "No colour" is stored as a null index, never as
   palette entry zero, so changing the default later reaches every list that never chose one.
+
+## How archiving works
+
+- **The archive is a sibling file, `groceries.archive.md`**, same checkbox format. `isArchiveFile`
+  keeps it out of the list of lists; the repository partitions what the store returns, and an
+  archive is matched to its list by `archiveFileNameFor(list.fileName)`. It follows a rename and is
+  deleted with its list. It is created on the first archive and deleted when it empties.
+- **Only subtrees done all the way down are archived** (`splitArchivable`), the same rule hiding
+  uses. A done parent with open children stays; its finished children are archived on their own,
+  each as a top-level archive item.
+- **Archive writes are immediate**, archive first and list second, so a failure duplicates rather
+  than loses. `archives` is a `StateFlow<Map<listId, items>>` kept beside `lists`.
+- **Undo restores the pre-archive snapshot** if the list is unchanged since; otherwise the items
+  return to the end of the list. Like `removeItems`, it only takes the archive's tail back if it
+  still reads as what was put there.
+- **Restore appends unticked** to the end of the list; delete-forever asks first. Restoring the
+  last item closes the archive screen.
 
 ## How adding from text works
 

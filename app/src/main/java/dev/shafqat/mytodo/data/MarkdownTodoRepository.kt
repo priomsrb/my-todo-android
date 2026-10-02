@@ -13,6 +13,9 @@ import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.TodoList
 import dev.shafqat.mytodo.model.addItem
+import dev.shafqat.mytodo.model.archiveFileNameFor
+import dev.shafqat.mytodo.model.isArchiveFile
+import dev.shafqat.mytodo.model.splitArchivable
 import dev.shafqat.mytodo.model.completedLast
 import dev.shafqat.mytodo.model.fileNameFor
 import dev.shafqat.mytodo.model.hasSameContentAs
@@ -62,6 +65,9 @@ class MarkdownTodoRepository(
     private val _lists = MutableStateFlow<List<TodoList>>(emptyList())
     override val lists: StateFlow<List<TodoList>> = _lists.asStateFlow()
 
+    private val _archives = MutableStateFlow<Map<String, List<TodoItem>>>(emptyMap())
+    override val archives: StateFlow<Map<String, List<TodoItem>>> = _archives.asStateFlow()
+
     private val _storageState = MutableStateFlow<StorageState>(StorageState.Loading)
     override val storageState: StateFlow<StorageState> = _storageState.asStateFlow()
 
@@ -92,6 +98,7 @@ class MarkdownTodoRepository(
             this.store = store
             documents.clear()
             _lists.value = emptyList()
+            _archives.value = emptyMap()
         }
         refresh(seedWhenEmpty)
     }
@@ -120,7 +127,9 @@ class MarkdownTodoRepository(
                 return@withStore
             }
 
-            val fileNames = store.listFileNames()
+            val allFileNames = store.listFileNames()
+            val archiveNames = allFileNames.filter(::isArchiveFile).toSet()
+            val fileNames = allFileNames.filterNot(::isArchiveFile)
             if (fileNames.isEmpty() && seedWhenEmpty) {
                 createWelcomeList(store)
                 return@withStore
@@ -130,6 +139,16 @@ class MarkdownTodoRepository(
             // everything they know in one go.
             val collapsedKeys = collapseStore.collapsedKeys()
             val allPrefs = listPrefsStore.all()
+
+            val loadedArchives = fileNames.mapNotNull { fileName ->
+                val archiveName = archiveFileNameFor(fileName)
+                if (archiveName !in archiveNames) return@mapNotNull null
+                val items = MarkdownParser.parse(withContext(ioDispatcher) { store.read(archiveName) }).items
+                val current = _archives.value[fileName]
+                // Same reasoning as keepingIdentity: an archive that has not changed keeps its ids,
+                // or the screen showing it would be rebuilt by every reload.
+                fileName to if (current != null && current.hasSameContentAs(items)) current else items
+            }.filter { it.second.isNotEmpty() }.toMap()
 
             val loaded = fileNames.map { fileName ->
                 if (pendingSaves.containsKey(fileName)) {
@@ -153,6 +172,7 @@ class MarkdownTodoRepository(
                     }
                 }
             }
+            _archives.value = loadedArchives
             _storageState.value = StorageState.Ready(store.label, loaded.size)
         }
     }
@@ -217,6 +237,13 @@ class MarkdownTodoRepository(
         withStore(store) {
             val actualName = fileMutex.withLock { store.rename(current.fileName, newFileName) }
             documents[actualName] = documents.remove(current.fileName) ?: MarkdownDocument()
+            if (_archives.value.containsKey(current.fileName)) {
+                // Best effort for the file's name, exact for the key: the archive follows its list.
+                store.rename(archiveFileNameFor(current.fileName), archiveFileNameFor(actualName))
+            }
+            _archives.update { archives ->
+                archives[current.fileName]?.let { archives - current.fileName + (actualName to it) } ?: archives
+            }
             collapseStore.renameFile(current.fileName, actualName)
             listPrefsStore.renameFile(current.fileName, actualName)
             _lists.update { lists ->
@@ -234,7 +261,13 @@ class MarkdownTodoRepository(
 
         pendingSaves.remove(current.fileName)?.cancel()
         withStore(store) {
-            fileMutex.withLock { store.delete(current.fileName) }
+            fileMutex.withLock {
+                store.delete(current.fileName)
+                if (_archives.value.containsKey(current.fileName)) {
+                    store.delete(archiveFileNameFor(current.fileName))
+                }
+            }
+            _archives.update { it - current.fileName }
             documents.remove(current.fileName)
             collapseStore.replaceKeysForFile(current.fileName, emptySet())
             listPrefsStore.clear(current.fileName)
@@ -371,6 +404,72 @@ class MarkdownTodoRepository(
     override suspend fun moveCompletedToBottom(listId: String) {
         mutate(listId) { items -> items.completedLast() }
         rekeyCollapse(listId)
+    }
+
+    override suspend fun archiveCompleted(listId: String): List<TodoItem> {
+        val list = _lists.value.firstOrNull { it.id == listId } ?: return emptyList()
+        val (remaining, archived) = list.items.splitArchivable()
+        if (archived.isEmpty()) return emptyList()
+
+        // The archive is written before the list loses the items: a failure part way leaves them in
+        // both places, which is a duplicate to tidy, rather than in neither, which is a loss.
+        writeArchive(list.fileName, _archives.value[list.fileName].orEmpty() + archived)
+        mutate(listId) { remaining }
+        rekeyCollapse(listId)
+        return archived
+    }
+
+    override suspend fun undoArchive(listId: String, before: List<TodoItem>, archived: List<TodoItem>) {
+        val list = _lists.value.firstOrNull { it.id == listId } ?: return
+        val texts = archived.map { it.text }
+        val inArchive = _archives.value[list.fileName].orEmpty()
+        // Matched by position and text, never by id, as for removeItems: only the tail of the
+        // archive is ours to take back, and only if it still reads as what was put there.
+        if (inArchive.size >= archived.size && inArchive.takeLast(archived.size).map { it.text } == texts) {
+            writeArchive(list.fileName, inArchive.dropLast(archived.size))
+        } else {
+            return
+        }
+        val untouched = list.items.hasSameContentAs(before.splitArchivable().first)
+        mutate(listId) { items -> if (untouched) before else items + archived }
+        rekeyCollapse(listId)
+    }
+
+    override suspend fun restoreArchived(listId: String, itemIds: Set<String>) {
+        val list = _lists.value.firstOrNull { it.id == listId } ?: return
+        val inArchive = _archives.value[list.fileName].orEmpty()
+        val (restored, kept) = inArchive.partition { it.id in itemIds }
+        if (restored.isEmpty()) return
+
+        // Unticked: an item brought back is work to do again, not another finished one.
+        writeArchive(list.fileName, kept)
+        mutate(listId) { items -> items + restored.map { it.withSubtreeDone(false) } }
+    }
+
+    override suspend fun deleteArchived(listId: String, itemIds: Set<String>) {
+        val list = _lists.value.firstOrNull { it.id == listId } ?: return
+        val inArchive = _archives.value[list.fileName].orEmpty()
+        writeArchive(list.fileName, inArchive.filterNot { it.id in itemIds })
+    }
+
+    /**
+     * Replaces a list's archive with [items], right away rather than on the autosave debounce:
+     * archiving is a deliberate act with its own undo, not a burst of typing. An archive with
+     * nothing in it is deleted rather than left as an empty file.
+     */
+    private suspend fun writeArchive(fileName: String, items: List<TodoItem>) {
+        val store = store ?: return
+        val archiveName = archiveFileNameFor(fileName)
+        withStore(store) {
+            fileMutex.withLock {
+                if (items.isEmpty()) {
+                    if (fileName in _archives.value) store.delete(archiveName)
+                } else {
+                    store.write(archiveName, MarkdownSerializer.serialize(items))
+                }
+            }
+            _archives.update { if (items.isEmpty()) it - fileName else it + (fileName to items) }
+        }
     }
 
     override suspend fun setListPrefs(listId: String, prefs: ListPrefs) {

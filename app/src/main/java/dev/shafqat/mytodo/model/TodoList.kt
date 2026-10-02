@@ -41,9 +41,21 @@ fun displayNameFor(fileName: String): String {
     return words.replaceFirstChar { it.uppercase() }
 }
 
-/** True when [fileName] is a markdown file this app should treat as a list. */
+/**
+ * True when [fileName] is a markdown file the app reads at all — a list, or a list's archive (see
+ * [isArchiveFile]); the repository tells the two apart.
+ */
 fun isTodoFile(fileName: String): Boolean =
     fileName.endsWith(".md", ignoreCase = true) || fileName.endsWith(".markdown", ignoreCase = true)
+
+private const val ARCHIVE_SUFFIX = ".archive.md"
+
+/** The file a list's archived items live in: `groceries.md` -> `groceries.archive.md`. */
+fun archiveFileNameFor(fileName: String): String =
+    fileName.removeSuffix(".md").removeSuffix(".markdown") + ARCHIVE_SUFFIX
+
+/** True for a list's archive file, which is never itself shown as a list. */
+fun isArchiveFile(fileName: String): Boolean = fileName.endsWith(ARCHIVE_SUFFIX, ignoreCase = true)
 
 /**
  * Makes [desired] unique against [existing] by appending a counter, e.g. "notes-2.md".

@@ -70,3 +70,28 @@ fun TodoItem.withDoneFrom(before: TodoItem): TodoItem {
         },
     )
 }
+
+/** True when this item and everything beneath it is ticked off. */
+private fun TodoItem.isFinishedThroughout(): Boolean = done && children.all { it.isFinishedThroughout() }
+
+/**
+ * What archiving a list does to it: the tree left behind, and the finished subtrees taken out.
+ *
+ * Only a subtree that is done *all the way down* goes, which is the same rule [withoutCompleted]
+ * follows: a done item with unfinished descendants stays, so those have somewhere to hang. Its own
+ * finished children are still archived, each as a top-level item of the archive — they lose their
+ * parent, but an archive is a pile of finished work, not a second copy of the list's outline.
+ */
+fun List<TodoItem>.splitArchivable(): Pair<List<TodoItem>, List<TodoItem>> {
+    val archived = mutableListOf<TodoItem>()
+    fun keep(items: List<TodoItem>): List<TodoItem> = items.mapNotNull { item ->
+        if (item.isFinishedThroughout()) {
+            archived += item
+            null
+        } else {
+            item.copy(children = keep(item.children))
+        }
+    }
+    val remaining = keep(this)
+    return remaining to archived
+}

@@ -51,6 +51,18 @@ data class AddedItems(
     val rowCount: Int,
 )
 
+/**
+ * What one "Archive completed" took out of the list, kept only long enough for its undo snackbar.
+ *
+ * [before] is the whole list as it stood, so undo can put everything back in its place;
+ * [archived] is what went to the archive, which is what undo has to take back off it.
+ */
+data class ArchivedItems(
+    val before: List<TodoItem>,
+    val archived: List<TodoItem>,
+    val rowCount: Int,
+)
+
 class TodoListViewModel(
     application: Application,
     private val listId: String,
@@ -82,6 +94,15 @@ class TodoListViewModel(
     /** Where "Add from text" last put a paste, so the dialog opens on the same choice. */
     val addFromTextAtTop: StateFlow<Boolean> = settings.addFromTextAtTop
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Whether this list has anything archived — what the "View archive" menu row hangs on. */
+    val hasArchive: StateFlow<Boolean> = repository.archives
+        .map { it[listId].orEmpty().isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** The most recent archiving, while the snackbar offering to undo it is still up. */
+    private val _pendingArchiveUndo = MutableStateFlow<ArchivedItems?>(null)
+    val pendingArchiveUndo: StateFlow<ArchivedItems?> = _pendingArchiveUndo.asStateFlow()
 
     /** The most recent paste, while the snackbar offering to undo it is still up. */
     private val _pendingAddUndo = MutableStateFlow<AddedItems?>(null)
@@ -273,6 +294,26 @@ class TodoListViewModel(
 
     fun moveCompletedToBottom() {
         viewModelScope.launch { repository.moveCompletedToBottom(listId) }
+    }
+
+    fun archiveCompleted() {
+        val before = items
+        viewModelScope.launch {
+            val archived = repository.archiveCompleted(listId)
+            if (archived.isNotEmpty()) {
+                _pendingArchiveUndo.value = ArchivedItems(before, archived, archived.rowCount())
+            }
+        }
+    }
+
+    fun undoArchive() {
+        val pending = _pendingArchiveUndo.value ?: return
+        _pendingArchiveUndo.value = null
+        viewModelScope.launch { repository.undoArchive(listId, pending.before, pending.archived) }
+    }
+
+    fun dismissArchiveUndo() {
+        _pendingArchiveUndo.value = null
     }
 
     fun rename(name: String) {

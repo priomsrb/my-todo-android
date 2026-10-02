@@ -367,3 +367,10 @@ Worth knowing before Phase 6:
   those still get it; a tap has a position and it is what the user meant. Tapping the empty space
   beside a short item still lands at the end of the line, so starting an edit to carry on typing
   costs nothing.
+
+## Phase 6g — Archiving completed items ✅
+
+- [x] "Archive completed" in the list menu moves finished subtrees to `<list>.archive.md`, with undo
+- [x] "View archive" screen: Restore, Restore all, Delete forever (confirmed)
+- [x] Archive follows list rename/delete and is hidden from the lists grid
+- Not done: auto-archive, archived items in search or widgets, restore-to-top option.

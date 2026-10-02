@@ -25,6 +25,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import dev.shafqat.mytodo.ui.archive.ArchiveScreen
 import dev.shafqat.mytodo.ui.lists.ListsScreen
 import dev.shafqat.mytodo.ui.search.SearchScreen
 import dev.shafqat.mytodo.ui.settings.SettingsScreen
@@ -38,9 +39,12 @@ object Routes {
     const val SETTINGS = "settings"
     const val SEARCH = "search"
     const val LIST_DETAIL = "list/{listId}"
+    const val ARCHIVE = "archive/{listId}"
 
     // List ids are filenames, so they must be encoded before going into a route.
     fun listDetail(listId: String) = "list/" + Uri.encode(listId)
+
+    fun archive(listId: String) = "archive/" + Uri.encode(listId)
 }
 
 /**
@@ -136,6 +140,7 @@ fun MyTodoApp(
                     TodoListScreen(
                         listId = listId,
                         onBack = { navController.popBackStack() },
+                        onOpenArchive = { navController.navigate(Routes.archive(listId)) },
                         startNewItem = startNewItemIn == entry.id,
                         onNewItemStarted = { startNewItemIn = null },
                         scrollToItemKey = scrollToItemIn?.takeIf { it.first == entry.id }?.second,
@@ -148,6 +153,15 @@ fun MyTodoApp(
                             }
                         },
                     )
+                }
+            }
+            composable(
+                route = Routes.ARCHIVE,
+                arguments = listOf(navArgument("listId") { type = NavType.StringType }),
+            ) { entry ->
+                val listId = requireNotNull(entry.arguments?.getString("listId"))
+                Screen(entry) {
+                    ArchiveScreen(listId = listId, onBack = { navController.popBackStack() })
                 }
             }
             composable(Routes.SEARCH) { entry ->

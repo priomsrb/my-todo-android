@@ -15,6 +15,12 @@ interface TodoRepository {
 
     val lists: StateFlow<List<TodoList>>
 
+    /**
+     * Each list's archived items, by list id: finished subtrees moved out of the list into a
+     * sibling `.archive.md` file. A list with nothing archived has no entry.
+     */
+    val archives: StateFlow<Map<String, List<TodoItem>>>
+
     /** Whether the configured storage location can currently be read and written. */
     val storageState: StateFlow<StorageState>
 
@@ -112,4 +118,23 @@ interface TodoRepository {
 
     /** Collapses or expands every item in the list that has children. */
     suspend fun setAllCollapsed(listId: String, collapsed: Boolean)
+
+    /**
+     * Moves every finished subtree out of the list and onto the end of its archive, returning what
+     * was archived (empty, and nothing changed, when there was nothing to archive).
+     */
+    suspend fun archiveCompleted(listId: String): List<TodoItem>
+
+    /**
+     * Undo for [archiveCompleted]: takes [archived] back off the archive and puts the list back as
+     * it was in [before]. When the list has been edited since, [before] would throw that edit away,
+     * so the archived items are returned to the end of the list instead.
+     */
+    suspend fun undoArchive(listId: String, before: List<TodoItem>, archived: List<TodoItem>)
+
+    /** Moves archived items back onto the end of the list, unticked, and out of the archive. */
+    suspend fun restoreArchived(listId: String, itemIds: Set<String>)
+
+    /** Removes archived items for good. */
+    suspend fun deleteArchived(listId: String, itemIds: Set<String>)
 }

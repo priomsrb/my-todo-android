@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
@@ -80,6 +82,7 @@ fun TodoListScreen(
     listId: String,
     onBack: () -> Unit,
     onRenamed: (String) -> Unit,
+    onOpenArchive: () -> Unit = {},
     startNewItem: Boolean = false,
     onNewItemStarted: () -> Unit = {},
     scrollToItemKey: String? = null,
@@ -93,6 +96,8 @@ fun TodoListScreen(
     val focusItemId by viewModel.focusItemId.collectAsStateWithLifecycle()
     val pendingUndo by viewModel.pendingUndo.collectAsStateWithLifecycle()
     val pendingAddUndo by viewModel.pendingAddUndo.collectAsStateWithLifecycle()
+    val pendingArchiveUndo by viewModel.pendingArchiveUndo.collectAsStateWithLifecycle()
+    val hasArchive by viewModel.hasArchive.collectAsStateWithLifecycle()
     val addFromTextAtTop by viewModel.addFromTextAtTop.collectAsStateWithLifecycle()
     val copyFormat by viewModel.copyFormat.collectAsStateWithLifecycle()
     val renamedListId by viewModel.renamedListId.collectAsStateWithLifecycle()
@@ -166,6 +171,23 @@ fun TodoListScreen(
         }
     }
 
+    val archivedMessage = pendingArchiveUndo?.let {
+        pluralStringResource(R.plurals.items_archived, it.rowCount, it.rowCount)
+    }
+    LaunchedEffect(pendingArchiveUndo) {
+        val archived = pendingArchiveUndo ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = archivedMessage ?: return@LaunchedEffect,
+            actionLabel = undoLabel,
+            duration = SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.undoArchive()
+        } else if (viewModel.pendingArchiveUndo.value === archived) {
+            viewModel.dismissArchiveUndo()
+        }
+    }
+
     // "Copy list": the rows as they are on screen, in the format chosen in settings. What is on
     // screen and not what is in the file, so a list set to hide finished items copies as the
     // outstanding work it is being read as.
@@ -214,6 +236,9 @@ fun TodoListScreen(
                         onToggleHideCompleted = { viewModel.setHideCompleted(!prefs.hideCompleted) },
                         onMoveCompletedToBottom = viewModel::moveCompletedToBottom,
                         onSetAllCollapsed = viewModel::setAllCollapsed,
+                        hasArchive = hasArchive,
+                        onArchiveCompleted = viewModel::archiveCompleted,
+                        onViewArchive = onOpenArchive,
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = tint),
@@ -343,6 +368,9 @@ private fun ListMenu(
     onToggleHideCompleted: () -> Unit,
     onMoveCompletedToBottom: () -> Unit,
     onSetAllCollapsed: (Boolean) -> Unit,
+    hasArchive: Boolean,
+    onArchiveCompleted: () -> Unit,
+    onViewArchive: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         MenuRow(stringResource(R.string.rename_list), Icons.Default.DriveFileRenameOutline) {
@@ -379,6 +407,16 @@ private fun ListMenu(
             ) {
                 onDismiss()
                 onMoveCompletedToBottom()
+            }
+            MenuRow(stringResource(R.string.archive_completed), Icons.Default.Archive) {
+                onDismiss()
+                onArchiveCompleted()
+            }
+        }
+        if (hasArchive) {
+            MenuRow(stringResource(R.string.view_archive), Icons.Default.Inventory2) {
+                onDismiss()
+                onViewArchive()
             }
         }
         MenuRow(stringResource(R.string.collapse_all), Icons.Default.UnfoldLess) {
