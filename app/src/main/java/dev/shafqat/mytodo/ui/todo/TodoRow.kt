@@ -1,5 +1,7 @@
 package dev.shafqat.mytodo.ui.todo
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -152,6 +154,8 @@ fun TodoRow(
     modifier: Modifier = Modifier,
     isDragging: Boolean = false,
     isEditing: Boolean = false,
+    /** Washes the row in the accent colour; fades in and out as it is turned on and off. */
+    isHighlighted: Boolean = false,
     /**
      * Reports the character offset the text was tapped at, or null when nothing was tapped.
      */
@@ -171,12 +175,23 @@ fun TodoRow(
         TextTopPadding + TextBottomPadding + MaterialTheme.typography.bodyLarge.lineHeight.toDp()
     }
 
+    val highlight by animateColorAsState(
+        if (isHighlighted) {
+            // A tint, not the full container colour: enough to find the row, not to shout.
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = HighlightAlpha)
+        } else {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0f)
+        },
+        animationSpec = tween(HighlightFadeMillis),
+        label = "highlight",
+    )
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .shadow(if (isDragging) 6.dp else 0.dp, RoundedCornerShape(8.dp))
             .background(
-                if (isDragging) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
+                if (isDragging) MaterialTheme.colorScheme.surfaceVariant else highlight,
                 RoundedCornerShape(8.dp),
             )
             .padding(start = indent, end = 8.dp),
@@ -457,3 +472,9 @@ private fun ItemEditor(
 /** The same value with any newline in its text turned into a space. */
 private fun TextFieldValue.withoutNewlines(): TextFieldValue =
     if ('\n' in text) copy(text = text.replace('\n', ' ')) else this
+
+/** How long the highlight takes to fade in, and again to fade out. */
+private const val HighlightFadeMillis = 300
+
+/** How much of the accent the highlight shows; the rest is the list behind it. */
+private const val HighlightAlpha = 0.15f

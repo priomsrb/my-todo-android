@@ -1,5 +1,6 @@
 package dev.shafqat.mytodo.ui.todo
 
+import kotlinx.coroutines.delay
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -180,11 +181,21 @@ fun TodoItemList(
     // A widget tap on an item's text asks for it to be brought into view. Spent once, whether or
     // not the item is there (hidden as finished, say): a request left outstanding would scroll
     // again the next time the list changed.
+    var highlightedItemId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(highlightedItemId) {
+        if (highlightedItemId != null) {
+            delay(HighlightMillis)
+            highlightedItemId = null
+        }
+    }
     val scrollSpent by rememberUpdatedState(onScrolledToItem)
     LaunchedEffect(scrollToItemId) {
         if (scrollToItemId != null) {
             val index = rows.indexOfFirst { it.item.id == scrollToItemId }
             if (index >= 0) listState.scrollToItem(index)
+            // Lit for a moment so the eye can find the row it was sent to. Set before the request
+            // is spent: spending it restarts this effect, so the timer lives in its own.
+            highlightedItemId = scrollToItemId
             scrollSpent()
         }
     }
@@ -242,6 +253,7 @@ fun TodoItemList(
                         depth = row.depth,
                         isDragging = isFloating,
                         isEditing = isEditing,
+                        isHighlighted = row.item.id == highlightedItemId,
                         onStartEdit = { caret ->
                             editingItemId = row.item.id
                             editingCaret = caret
@@ -393,3 +405,6 @@ private fun SwipeToDelete(
         content = { content() },
     )
 }
+
+/** How long a row sent to from a widget stays lit. */
+private const val HighlightMillis = 1200L
