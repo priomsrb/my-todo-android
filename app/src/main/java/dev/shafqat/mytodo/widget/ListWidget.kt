@@ -345,7 +345,7 @@ private fun WidgetDivider(divider: Divider, done: Boolean, modifier: GlanceModif
         }
     }
     Row(
-        modifier = modifier.height(WidgetDividerHeight),
+        modifier = modifier.padding(top = WidgetFirstLineInset + 2.5.dp).height(WidgetDividerHeight),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Rule(GlanceModifier.defaultWeight())
@@ -364,7 +364,8 @@ private fun WidgetDivider(divider: Divider, done: Boolean, modifier: GlanceModif
     }
 }
 
-private val WidgetDividerHeight = 48.dp
+/** One line of item text, so the rule is centred where the first line of a text row would be. */
+private val WidgetDividerHeight = 22.dp
 
 /**
  * How far an item's text sits below the top of its row, so its first line reads as level with the
