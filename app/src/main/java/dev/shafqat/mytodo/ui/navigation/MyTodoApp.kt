@@ -48,10 +48,12 @@ object Routes {
  *
  * @param startNewItem set by the list widget's "+": land in the list with an empty item already
  *   open for typing, rather than just showing it.
+ * @param itemKey set by a tap on an item's text in the list widget: scroll to that item.
  */
 data class OpenListRequest(
     val listId: String,
     val startNewItem: Boolean = false,
+    val itemKey: String? = null,
 )
 
 /**
@@ -79,6 +81,10 @@ fun MyTodoApp(
     // identity: as an argument it would fire again every time the entry was rebuilt.
     var startNewItemIn by remember { mutableStateOf<String?>(null) }
 
+    // The same arrangement for a request to scroll to an item: the entry that owes it, and the
+    // key of the item.
+    var scrollToItemIn by remember { mutableStateOf<Pair<String, String>?>(null) }
+
     // A widget opens a list *on top of* the home screen rather than instead of it, so back still
     // goes where it always goes.
     LaunchedEffect(openRequest) {
@@ -90,6 +96,9 @@ fun MyTodoApp(
             if (openRequest.startNewItem) {
                 startNewItemIn = navController.currentBackStackEntry?.id
             }
+            val itemKey = openRequest.itemKey
+            val entryId = navController.currentBackStackEntry?.id
+            if (itemKey != null && entryId != null) scrollToItemIn = entryId to itemKey
             onRequestHandled()
         }
     }
@@ -129,6 +138,8 @@ fun MyTodoApp(
                         onBack = { navController.popBackStack() },
                         startNewItem = startNewItemIn == entry.id,
                         onNewItemStarted = { startNewItemIn = null },
+                        scrollToItemKey = scrollToItemIn?.takeIf { it.first == entry.id }?.second,
+                        onScrolledToItem = { scrollToItemIn = null },
                         // A rename renames the file, and the file name is this route's argument,
                         // so the screen has to be reopened under the id the list now has.
                         onRenamed = { newListId ->

@@ -52,7 +52,11 @@ class MainActivity : ComponentActivity() {
 
     private fun Intent.openListRequest(): OpenListRequest? {
         val listId = getStringExtra(EXTRA_LIST_ID) ?: return null
-        return OpenListRequest(listId, startNewItem = getBooleanExtra(EXTRA_NEW_ITEM, false))
+        return OpenListRequest(
+            listId,
+            startNewItem = getBooleanExtra(EXTRA_NEW_ITEM, false),
+            itemKey = getStringExtra(EXTRA_ITEM_KEY),
+        )
     }
 
     /** Files may have been edited elsewhere while the app was away, so re-read them. */
@@ -73,5 +77,8 @@ class MainActivity : ComponentActivity() {
 
         /** Set by the list widget's "+" to land in that list with an empty item ready to type in. */
         const val EXTRA_NEW_ITEM = "dev.shafqat.mytodo.extra.NEW_ITEM"
+
+        /** Set by a tap on a widget item's text: the `CollapseKeys` key of the item to scroll to. */
+        const val EXTRA_ITEM_KEY = "dev.shafqat.mytodo.extra.ITEM_KEY"
     }
 }

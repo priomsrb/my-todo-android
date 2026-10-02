@@ -248,7 +248,7 @@ private fun ListWidgetHeader(list: TodoList, topLevelOnly: Boolean) {
  * button centres its box on the whole of its text and Glance offers no way to say otherwise: an
  * item that wrapped had its box floating halfway down it. Apart, the row is top-aligned and the
  * text is nudged down so its first line sits level with the box, as in the app. The text carries
- * the same toggle as the box, so the whole row is still the target it was.
+ * a tap that opens the app on that item; the box alone ticks it.
  *
  * When the widget shows top-level items only, a row with unfinished work folded beneath it says how
  * much, outside the text so a ticked parent's count is not struck through with it: the tick is the
@@ -262,6 +262,7 @@ private fun ListWidgetHeader(list: TodoList, topLevelOnly: Boolean) {
  */
 @Composable
 private fun WidgetItemRow(listId: String, row: WidgetRow, cascade: Boolean) {
+    val context = LocalContext.current
     val toggle = actionRunCallback<ToggleItemAction>(
         ToggleItemAction.parameters(
             listId = listId,
@@ -300,7 +301,7 @@ private fun WidgetItemRow(listId: String, row: WidgetRow, cascade: Boolean) {
             modifier = GlanceModifier
                 .defaultWeight()
                 .padding(top = WidgetFirstLineInset)
-                .clickable(toggle),
+                .clickable(actionStartActivity(openItemIntent(context, listId, row.key))),
         )
         if (row.hiddenOpenCount > 0) {
             Text(

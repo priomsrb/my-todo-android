@@ -67,6 +67,7 @@ import dev.shafqat.mytodo.ui.components.AddFromTextDialog
 import dev.shafqat.mytodo.ui.components.ClipboardConfirmsItself
 import dev.shafqat.mytodo.ui.components.ColorPickerDialog
 import dev.shafqat.mytodo.ui.components.EmptyState
+import dev.shafqat.mytodo.data.collapse.CollapseKeys
 import dev.shafqat.mytodo.ui.components.TextInputDialog
 import dev.shafqat.mytodo.ui.components.copyToClipboard
 import dev.shafqat.mytodo.ui.theme.noteColors
@@ -81,6 +82,8 @@ fun TodoListScreen(
     onRenamed: (String) -> Unit,
     startNewItem: Boolean = false,
     onNewItemStarted: () -> Unit = {},
+    scrollToItemKey: String? = null,
+    onScrolledToItem: () -> Unit = {},
     viewModel: TodoListViewModel = viewModel(
         key = "todo-list-$listId",
         factory = todoListViewModelFactory(listId),
@@ -269,6 +272,10 @@ fun TodoListScreen(
                     dragEnabled = !prefs.hideCompleted,
                     swipeToDeleteEnabled = swipeToDeleteEnabled,
                     focusItemId = focusItemId,
+                    scrollToItemId = scrollToItemKey?.let {
+                        CollapseKeys.idOf(list?.items.orEmpty(), list?.fileName.orEmpty(), it)
+                    },
+                    onScrolledToItem = onScrolledToItem,
                     onToggleDone = viewModel::setDone,
                     onToggleCollapsed = viewModel::setCollapsed,
                     onDelete = viewModel::deleteItem,

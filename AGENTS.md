@@ -591,6 +591,12 @@ app/src/test/java/dev/shafqat/mytodo/
   list with no colour of its own would have drawn invisible buttons on the widget's white
   background. The app's own "Add item" FAB uses the same pair, which is also why the corner reads
   the same in both places.
+- **Tapping an item's text opens the app on it; only the checkbox ticks.** The text's click is
+  `openItemIntent` (`mytodo://item/<list>/<key>`, key in the data URI so rows do not share a
+  `PendingIntent`). It rides the same `OpenListRequest` path as the "+", carrying the item's
+  `CollapseKeys` key and naming the back stack *entry* that owes the scroll, for the same reason.
+  `TodoListScreen` resolves the key to an id when it arrives and `TodoItemList` scrolls to the row
+  once; an item hidden as finished just opens the list.
 - **The "+" is a request the app carries out, not an edit the widget makes.** Typing needs a
   keyboard and the list to see it against, which is a screen, not an overlay — so the widget only
   asks. `MainActivity` turns the intent into an `OpenListRequest`, the NavHost navigates and

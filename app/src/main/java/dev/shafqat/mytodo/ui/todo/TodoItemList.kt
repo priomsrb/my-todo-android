@@ -101,6 +101,8 @@ fun TodoItemList(
     dragEnabled: Boolean = true,
     swipeToDeleteEnabled: Boolean = false,
     focusItemId: String? = null,
+    scrollToItemId: String? = null,
+    onScrolledToItem: () -> Unit = {},
     editActions: ItemEditActions = ItemEditActions(),
     onEditingChanged: (itemId: String?) -> Unit = {},
 ) {
@@ -174,6 +176,18 @@ fun TodoItemList(
             .moveSubtree(draggedId, dragState.targetIndex, dragState.targetDepth)
     }
     val rows = previewItems.flattenVisible()
+
+    // A widget tap on an item's text asks for it to be brought into view. Spent once, whether or
+    // not the item is there (hidden as finished, say): a request left outstanding would scroll
+    // again the next time the list changed.
+    val scrollSpent by rememberUpdatedState(onScrolledToItem)
+    LaunchedEffect(scrollToItemId) {
+        if (scrollToItemId != null) {
+            val index = rows.indexOfFirst { it.item.id == scrollToItemId }
+            if (index >= 0) listState.scrollToItem(index)
+            scrollSpent()
+        }
+    }
 
     // The toolbar is drawn over the list rather than beside it, so the rows keep the whole screen
     // and nothing reflows when an edit starts.

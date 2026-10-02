@@ -58,6 +58,21 @@ internal fun openListIntent(context: Context, listId: String?): Intent =
     }
 
 /**
+ * An intent that opens [listId] in the app and scrolls to the item named by [itemKey].
+ *
+ * `mytodo://item/<list>/<key>` so each row gets its own `PendingIntent`: `Intent` equality ignores
+ * extras, and every row of a widget is held at once.
+ */
+internal fun openItemIntent(context: Context, listId: String, itemKey: String): Intent =
+    Intent(context, MainActivity::class.java).apply {
+        action = Intent.ACTION_VIEW
+        data = ("mytodo://item/" + Uri.encode(listId) + "/" + Uri.encode(itemKey)).toUri()
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        putExtra(MainActivity.EXTRA_LIST_ID, listId)
+        putExtra(MainActivity.EXTRA_ITEM_KEY, itemKey)
+    }
+
+/**
  * An intent that opens [listId] in the app with a fresh, empty item waiting at the top of it.
  *
  * The counterpart to the voice tile for the times dictation is the wrong tool — a noisy room, or an
