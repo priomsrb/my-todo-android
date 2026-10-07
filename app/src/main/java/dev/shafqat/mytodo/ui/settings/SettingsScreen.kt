@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,6 +58,11 @@ fun SettingsScreen(
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri -> uri?.let(viewModel::onFolderPicked) }
+
+    val movePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri -> uri?.let(viewModel::onMoveTargetPicked) }
+    val moveState by viewModel.moveState.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -107,6 +113,13 @@ fun SettingsScreen(
                     modifier = Modifier.padding(start = 12.dp),
                 ) { Text(stringResource(R.string.use_default_folder)) }
             }
+            SettingRow(
+                title = stringResource(R.string.move_folder),
+                subtitle = stringResource(
+                    if (moveState is MoveState.Moving) R.string.move_folder_moving else R.string.move_folder_summary,
+                ),
+                onClick = { if (moveState !is MoveState.Moving) movePicker.launch(null) },
+            )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             SettingSwitchRow(
                 title = stringResource(R.string.swipe_to_delete),
@@ -138,6 +151,19 @@ fun SettingsScreen(
                 subtitle = stringResource(R.string.version_summary),
             )
         }
+    }
+
+    val result = moveState
+    if (result is MoveState.Done || result is MoveState.Failed) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissMoveResult,
+            text = {
+                Text(
+                    if (result is MoveState.Failed) result.message else stringResource(R.string.move_folder_done),
+                )
+            },
+            confirmButton = { TextButton(onClick = viewModel::dismissMoveResult) { Text(stringResource(R.string.ok)) } },
+        )
     }
 
     if (showCopyFormatDialog) {

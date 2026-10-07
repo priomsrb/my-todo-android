@@ -293,6 +293,8 @@ Worth knowing before Phase 6:
 
 ## Phase 7 — Robustness and extras
 
+- [x] Move the todo folder: Settings → Move folder copies lists and archives to a picked, empty folder and switches to it (verify on a real SAF provider)
+
 - [ ] Verify on a real SAF provider that creating a list keeps the requested filename — providers
       may append or change an extension. `SafDirectoryStore.create`/`rename` already read the real
       name back off the result, but that path has only been exercised against a local directory

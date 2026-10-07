@@ -2,13 +2,17 @@ package dev.shafqat.mytodo
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import dev.shafqat.mytodo.data.MarkdownTodoRepository
 import dev.shafqat.mytodo.data.settings.DataStoreCollapseStore
 import dev.shafqat.mytodo.data.settings.DataStoreListPrefsStore
 import dev.shafqat.mytodo.data.settings.SettingsRepository
 import dev.shafqat.mytodo.data.store.LocalDirectoryStore
+import dev.shafqat.mytodo.data.store.MoveFolderException
 import dev.shafqat.mytodo.data.store.SafDirectoryStore
+import dev.shafqat.mytodo.data.store.TodoFileStore
+import dev.shafqat.mytodo.data.store.moveFolder
 import dev.shafqat.mytodo.widget.RecentlyTicked
 import dev.shafqat.mytodo.widget.updateTodoWidgets
 import kotlinx.coroutines.CoroutineScope
@@ -80,6 +84,37 @@ class MyTodoApplication : Application() {
             .distinctUntilChanged()
             .debounce(WIDGET_UPDATE_DEBOUNCE_MILLIS)
             .collectLatest { updateTodoWidgets() }
+    }
+
+    /**
+     * Moves every list and archive out of the current folder into [target], then follows them.
+     *
+     * Throws [MoveFolderException] with a user-facing message when the destination cannot take the
+     * files; the current folder is left whole in that case. The setting only changes once the
+     * copy has been read back, and [attachStore] does the reload from there.
+     */
+    suspend fun moveFolderTo(target: Uri) {
+        if (hasAttachedStore && target.toString() == attachedFolderUri) return
+        val source = currentStore()
+        val destination = SafDirectoryStore(this, target)
+        if (!destination.isAccessible()) throw MoveFolderException("Can't write to that folder.")
+        repository.flushPendingSaves()
+        moveFolder(source, destination)
+        val previous = attachedFolderUri
+        settings.setTodoFolderUri(target.toString())
+        if (previous != null) {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            runCatching { contentResolver.releasePersistableUriPermission(Uri.parse(previous), flags) }
+        }
+    }
+
+    private fun currentStore(): TodoFileStore {
+        val uri = attachedFolderUri
+        return if (uri == null) {
+            LocalDirectoryStore(File(filesDir, DEFAULT_FOLDER_NAME))
+        } else {
+            SafDirectoryStore(this, Uri.parse(uri))
+        }
     }
 
     private suspend fun attachStore(folderUri: String?) {

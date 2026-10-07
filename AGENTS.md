@@ -550,6 +550,16 @@ app/src/test/java/dev/shafqat/mytodo/
   `ClipboardConfirmsItself` in `ui/components/Clipboard.kt` is what keeps the app from stacking a
   second confirmation on top of the system's; below API 33 the app shows the snackbar.
 
+## How moving the folder works
+
+- **"Move folder" copies, verifies, then deletes.** `moveFolder` in `data/store/MoveFolder.kt` reads
+  every file (lists and archives) from the current store, writes each into the destination and reads
+  it back; only then are the originals deleted and the folder setting switched. A failure leaves the
+  source whole. A destination already holding a same-named file is refused, never overwritten.
+- **File names are preserved**, which is what keeps collapse state and list prefs (keyed by file
+  name) valid across the move. `MyTodoApplication.moveFolderTo` flushes pending saves first and
+  releases the old folder's permission afterwards. Not verified on a real SAF provider.
+
 ## How the widgets work
 
 - **A widget shares the app's repository; it never opens the files itself.** Two readers of the same

@@ -18,6 +18,10 @@
     <string name="version_summary">0.6 — home-screen widgets</string>
     <string name="default_folder_label">App storage (internal)</string>
     <string name="use_default_folder">Use app storage instead</string>
+    <string name="move_folder">Move folder</string>
+    <string name="move_folder_summary">Move your lists and archives to another folder</string>
+    <string name="move_folder_moving">Moving…</string>
+    <string name="move_folder_done">Your lists have been moved.</string>
     <string name="choose_folder">Choose folder</string>
     <string name="folder_unavailable">Your todo folder is no longer accessible. Pick it again to restore access.</string>
     <string name="loading">Loading…</string>
@@ -29,6 +33,7 @@
     <string name="delete_list">Delete list</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
     <string name="delete_list_title">Delete “%1$s”?</string>
     <string name="delete_list_message">This deletes %1$s from your todo folder.</string>
     <string name="collapse">Collapse</string>
