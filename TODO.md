@@ -291,6 +291,12 @@ Worth knowing before Phase 6:
 - [x] Checked on the emulator, file included: tick cascades to every depth, a quick second tap puts
       back exactly the ticks there were, a second tap after 4s unticks only the parent
 
+## Phase 6i — Widget buttons at the top ✅
+
+- [x] A global setting (`widgetActionsAtTop`, off by default) moves the list widget's mic and "+"
+      from the floating bottom corner into the header's right end; the trailing spacer goes with them
+- [x] Checked on the emulator
+
 ## Phase 7 — Robustness and extras
 
 - [x] Move the todo folder: Settings → Move folder copies lists and archives to a picked, empty folder and switches to it (verify on a real SAF provider)

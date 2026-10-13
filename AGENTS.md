@@ -624,6 +624,11 @@ app/src/test/java/dev/shafqat/mytodo/
   are not in the header because the header is itself the tap target that opens the list, and buttons
   inside it would be targets inside a target. They float rather than taking a row of their own, and
   the `LazyColumn` ends with a spacer their height so the last item can still be scrolled clear.
+- **The pair can sit in the header instead** (`widgetActionsAtTop`, settings DataStore, default off,
+  one global switch like top-level-only; `MyTodoApplication` redraws the widgets when it changes).
+  The header is then split: title and count form the clickable that opens the list, and the buttons
+  sit beside it as targets of their own, so there is still no target inside a target. The trailing
+  spacer is dropped, since nothing floats over the list any more.
 - **The buttons are `primaryContainer`, not the list's tint.** `NoteColors[0]` is pure white, so a
   list with no colour of its own would have drawn invisible buttons on the widget's white
   background. The app's own "Add item" FAB uses the same pair, which is also why the corner reads
