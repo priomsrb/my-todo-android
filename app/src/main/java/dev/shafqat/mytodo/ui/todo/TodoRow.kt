@@ -202,25 +202,6 @@ fun TodoRow(
             .padding(start = indent, end = 8.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        if (showDragHandle) {
-            FirstLine(firstLine) {
-                Icon(
-                    imageVector = Icons.Default.DragIndicator,
-                    contentDescription = stringResource(R.string.drag_handle),
-                    tint = if (isDragging) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.outline
-                    },
-                    modifier = dragHandleModifier.size(20.dp),
-                )
-            }
-        } else {
-            // Reordering is off, so the handle would be a control that does nothing. The space it
-            // held stays, to keep the rows lined up with how they look the rest of the time.
-            Spacer(Modifier.width(20.dp))
-        }
-
         if (hasChildren) {
             // Pointing down when expanded, right when collapsed.
             val rotation by animateFloatAsState(
@@ -246,6 +227,25 @@ fun TodoRow(
             }
         } else {
             Spacer(Modifier.width(ChevronSize))
+        }
+
+        if (showDragHandle) {
+            FirstLine(firstLine) {
+                Icon(
+                    imageVector = Icons.Default.DragIndicator,
+                    contentDescription = stringResource(R.string.drag_handle),
+                    tint = if (isDragging) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.outline
+                    },
+                    modifier = dragHandleModifier.size(20.dp),
+                )
+            }
+        } else {
+            // Reordering is off, so the handle would be a control that does nothing. The space it
+            // held stays, to keep the rows lined up with how they look the rest of the time.
+            Spacer(Modifier.width(20.dp))
         }
 
         FirstLine(firstLine) {
