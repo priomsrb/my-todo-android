@@ -96,11 +96,24 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { preferences -> preferences[WIDGET_TOP_LEVEL_ONLY] = enabled }
     }
 
+    /**
+     * Whether the list widget's mic and "+" sit at the top, in the header, rather than floating
+     * over the bottom corner. One switch for every list widget; off by default.
+     */
+    val widgetActionsAtTop: Flow<Boolean> = context.dataStore.data
+        .map { it[WIDGET_ACTIONS_AT_TOP] ?: false }
+        .distinctUntilChanged()
+
+    suspend fun setWidgetActionsAtTop(enabled: Boolean) {
+        context.dataStore.edit { preferences -> preferences[WIDGET_ACTIONS_AT_TOP] = enabled }
+    }
+
     private companion object {
         val TODO_FOLDER_URI = stringPreferencesKey("todo_folder_uri")
         val SWIPE_TO_DELETE = booleanPreferencesKey("swipe_to_delete")
         val ADD_FROM_TEXT_AT_TOP = booleanPreferencesKey("add_from_text_at_top")
         val COPY_FORMAT = stringPreferencesKey("copy_format")
+        val WIDGET_ACTIONS_AT_TOP = booleanPreferencesKey("widget_actions_at_top")
         val WIDGET_TOP_LEVEL_ONLY = booleanPreferencesKey("widget_top_level_only")
     }
 }

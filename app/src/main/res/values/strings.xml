@@ -11,6 +11,8 @@
     <string name="swipe_to_delete">Swipe to delete</string>
     <string name="swipe_to_delete_summary">Swipe a row either way to delete it.</string>
     <string name="widget_top_level_only">Widgets show top-level items only</string>
+    <string name="widget_actions_at_top">Widget buttons at the top</string>
+    <string name="widget_actions_at_top_summary">Put the mic and + buttons in the list widget\'s header instead of over the bottom corner.</string>
     <string name="widget_top_level_only_summary">Hide sub-items on list widgets; a count shows how many are still open.</string>
     <string name="file_format">File format</string>
     <string name="file_format_summary">Markdown · one file per list · tab-indented · - [ ] / - [X]</string>

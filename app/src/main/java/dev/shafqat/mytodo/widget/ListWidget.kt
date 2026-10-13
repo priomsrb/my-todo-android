@@ -70,6 +70,7 @@ class ListWidget : GlanceAppWidget() {
         repository?.refresh()
         val settings = context.todoApp.settings
         val initialTopLevelOnly = settings.widgetTopLevelOnly.first()
+        val initialActionsAtTop = settings.widgetActionsAtTop.first()
 
         provideContent {
             GlanceTheme(colors = WidgetColors) {
@@ -81,13 +82,15 @@ class ListWidget : GlanceAppWidget() {
                     val lists by repository.lists.collectAsState()
                     val topLevelOnly by settings.widgetTopLevelOnly
                         .collectAsState(initial = initialTopLevelOnly)
+                    val actionsAtTop by settings.widgetActionsAtTop
+                        .collectAsState(initial = initialActionsAtTop)
                     val heldKey by context.todoApp.recentlyTicked.key.collectAsState()
                     val list = lists.firstOrNull { it.id == listId }
 
                     if (list == null) {
                         WidgetMessage(context.getString(R.string.widget_list_missing))
                     } else {
-                        ListWidgetContent(list, topLevelOnly, heldKey)
+                        ListWidgetContent(list, topLevelOnly, actionsAtTop, heldKey)
                     }
                 }
             }
@@ -100,7 +103,12 @@ class ListWidget : GlanceAppWidget() {
 }
 
 @Composable
-private fun ListWidgetContent(list: TodoList, topLevelOnly: Boolean, heldKey: String?) {
+private fun ListWidgetContent(
+    list: TodoList,
+    topLevelOnly: Boolean,
+    actionsAtTop: Boolean,
+    heldKey: String?,
+) {
     val context = LocalContext.current
     val rows = list.widgetRows(topLevelOnly, heldKey)
 
@@ -113,7 +121,7 @@ private fun ListWidgetContent(list: TodoList, topLevelOnly: Boolean, heldKey: St
         contentAlignment = Alignment.BottomEnd,
     ) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
-            ListWidgetHeader(list, topLevelOnly)
+            ListWidgetHeader(list, topLevelOnly, actionsAtTop)
 
             if (rows.isEmpty()) {
                 Text(
@@ -131,12 +139,12 @@ private fun ListWidgetContent(list: TodoList, topLevelOnly: Boolean, heldKey: St
                     }
                     // The buttons float over the foot of the list, so without this the last
                     // item could never be scrolled out from under them.
-                    item { Spacer(GlanceModifier.height(ActionRowHeight)) }
+                    if (!actionsAtTop) item { Spacer(GlanceModifier.height(ActionRowHeight)) }
                 }
             }
         }
 
-        ListWidgetActions(list)
+        if (!actionsAtTop) ListWidgetActions(list)
     }
 }
 
@@ -213,34 +221,42 @@ private val ActionRowHeight = ActionButtonSize
 
 /** The list's name and how much of it is done. Tapping it opens that list in the app. */
 @Composable
-private fun ListWidgetHeader(list: TodoList, topLevelOnly: Boolean) {
+private fun ListWidgetHeader(list: TodoList, topLevelOnly: Boolean, actionsAtTop: Boolean) {
     val context = LocalContext.current
     val (done, total) = list.widgetProgress(topLevelOnly)
 
+    // With the buttons here, only the title and count open the list: the buttons beside them are
+    // targets of their own, so the clickable cannot be the whole row.
     Row(
-        modifier = GlanceModifier
-            .fillMaxWidth()
-            .padding(bottom = 6.dp)
-            .clickable(actionStartActivity(openListIntent(context, list.id))),
+        modifier = GlanceModifier.fillMaxWidth().padding(bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = list.name,
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurface,
-                fontSize = WidgetTitleSize,
-                fontWeight = FontWeight.Medium,
-            ),
-            maxLines = 1,
-            modifier = GlanceModifier.defaultWeight(),
-        )
-        Text(
-            text = "$done/$total",
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurfaceVariant,
-                fontSize = WidgetCaptionSize,
-            ),
-        )
+        Row(
+            modifier = GlanceModifier
+                .defaultWeight()
+                .clickable(actionStartActivity(openListIntent(context, list.id))),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = list.name,
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontSize = WidgetTitleSize,
+                    fontWeight = FontWeight.Medium,
+                ),
+                maxLines = 1,
+                modifier = GlanceModifier.defaultWeight(),
+            )
+            Text(
+                text = "$done/$total",
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    fontSize = WidgetCaptionSize,
+                ),
+                modifier = GlanceModifier.padding(horizontal = if (actionsAtTop) 8.dp else 0.dp),
+            )
+        }
+        if (actionsAtTop) ListWidgetActions(list)
     }
 }
 

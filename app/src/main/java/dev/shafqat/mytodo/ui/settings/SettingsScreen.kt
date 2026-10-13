@@ -53,6 +53,7 @@ fun SettingsScreen(
     val swipeToDeleteEnabled by viewModel.swipeToDeleteEnabled.collectAsStateWithLifecycle()
     val copyFormat by viewModel.copyFormat.collectAsStateWithLifecycle()
     val widgetTopLevelOnly by viewModel.widgetTopLevelOnly.collectAsStateWithLifecycle()
+    val widgetActionsAtTop by viewModel.widgetActionsAtTop.collectAsStateWithLifecycle()
     var showCopyFormatDialog by remember { mutableStateOf(false) }
 
     val folderPicker = rememberLauncherForActivityResult(
@@ -139,6 +140,13 @@ fun SettingsScreen(
                 subtitle = stringResource(R.string.widget_top_level_only_summary),
                 checked = widgetTopLevelOnly,
                 onCheckedChange = viewModel::setWidgetTopLevelOnly,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            SettingSwitchRow(
+                title = stringResource(R.string.widget_actions_at_top),
+                subtitle = stringResource(R.string.widget_actions_at_top_summary),
+                checked = widgetActionsAtTop,
+                onCheckedChange = viewModel::setWidgetActionsAtTop,
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             SettingRow(
