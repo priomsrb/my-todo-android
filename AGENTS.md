@@ -229,6 +229,7 @@ app/src/test/java/dev/shafqat/mytodo/
   MoveItemTest.kt            moves reaching the file
   AutoScrollTest.kt          when a drag scrolls the list
   DragOverlayTest.kt         where the floating row is drawn relative to its slot
+  DragTargetTest.kt          which slot a dragged row aims at, and never one off screen
   OutlineEditTest.kt         indent/outdent and putting a deleted subtree back
   CompletedTest.kt           hiding finished items vs. sinking them
   ArchiveTest.kt             archiving to the sibling file, restoring, undo, rename/delete following the list
@@ -290,20 +291,37 @@ app/src/test/java/dev/shafqat/mytodo/
   `draggedItemId`: the move is committed the instant the finger lifts, and the settle is only the
   drop animation sliding the leftover offset to zero. Feeding it back into the preview would move
   the item twice. Picking a row up again cancels any settle still running.
-- **The dragged row's own slot wins the hit test.** Neighbours are mid-animation while it travels,
-  and a plain hit test against a row still sliding can hand the target back to where it came from
-  one frame after it left — the row then flickers between two slots. If the finger is still inside
-  the dragged row's slot, the target does not move.
-- **Off the ends means off the *rows*, not off the viewport.** The list has top and bottom content
-  padding, which is inside the viewport but outside every row. Testing against `viewportStartOffset`
-  left the top padding falling through to the "past the end" branch, so nudging the top row up by
-  half a row sent it to the bottom of the list. The bounds to compare against are the first and last
-  visible rows; a finger between two rows keeps whatever target it had.
-- **The drag starts on movement, not on a hold.** The handle uses `detectDragGestures`, so a row
-  moves from the first movement past touch slop; there is no long-press threshold to wait out. The
-  handle consumes the gesture, which is what stops that same movement from scrolling the list or
-  arming swipe-to-delete — and it is why the handle is a small, deliberate target rather than the
-  whole row.
+- **The target moves by midpoints, against laid-out positions.** `dragTarget` (pure, tested in
+  `DragTargetTest`) swaps the dragged row with a neighbour once the finger passes that neighbour's
+  midpoint — `ItemTouchHelper`'s rule. It reads `layoutInfo`, which holds where rows *are laid
+  out*, not where they are drawn mid-`animateItem`, so a swap cannot undo itself on the next frame
+  whatever the two rows' heights. A layout that has not caught up with the last move yet is not
+  walked at all, or the row would move twice. This replaced two hacks — "the dragged row's own slot
+  wins" and "between two rows, keep the target" — that hit-tested against sliding rows.
+- **The target only walks across rows that are laid out.** A finger past either end of them —
+  over the status bar, the navigation bar, the list's padding — leaves the row at the end one, and
+  auto-scroll brings more in. The old fallback aimed a finger below the last visible row at the end
+  of the *whole* list: a slot far off screen, where the lazy list disposed the row mid-drag.
+- **The gesture belongs to the list, not to the row.** The handle only notices the drag begin
+  (`awaitTouchSlopOrCancellation`, consuming that movement so the list does not scroll and
+  swipe-to-delete does not arm) and hands its pointer to `TodoDragState`. From there a
+  `pointerInput` on the `Box` around the `LazyColumn` follows that pointer, on the *initial* pass,
+  until it lifts. While the gesture lived on the handle, any way of pushing the dragged row out of
+  the laid-out window — and there were several — disposed the row, cancelled its gesture and
+  snapped the item back to where it started. A cancelled gesture arrives as the pointer going up,
+  so it drops the row where the preview has it rather than throwing the move away.
+- **Moving the dragged row pins the scroll position to an index.** A lazy list holds its scroll
+  position by the *key* of its first visible row, so moving the dragged row into or out of the top
+  slot scrolled the list to chase whichever row had been there — off by a row each time, and with
+  the dragged row pushed off the top. `updateTargetIndex` calls `requestScrollToItem` with the
+  current first index and offset before each move. That request cancels any scroll in progress,
+  which is why the auto-scroll loop catches the `CancellationException` from its own `scrollBy`.
+- **Sideways overshoot is clamped as it builds up, not afterwards.** Horizontal travel adds to a
+  fractional requested depth that is held within half a level of `allowedDepthRange` at the current
+  slot, so dragging four levels right where one is allowed costs one level, not four, to undo.
+  Vertical travel leaves the request alone, so a depth asked for survives crossing rows that cannot
+  take it. The list supplies the range (`TodoDragState.depthRange`), working the tree out once per
+  drag.
 - **The drag gesture must not capture the row's index or depth.** `pointerInput` is keyed on the
   item id alone, deliberately, so reordering the list cannot cancel an in-flight drag — which also
   means its gesture block is never recreated when a row moves. Read index and depth through
@@ -312,7 +330,10 @@ app/src/test/java/dev/shafqat/mytodo/
 - **Auto-scroll only engages once the finger has travelled.** Picking up a row that already sits
   inside the edge band used to scroll the list while the finger was still, and since each scroll
   re-reads the row under the finger, the item walked up the list on its own. `autoScrollSpeed` is
-  pure and tested — keep the decision there rather than inline in the frame loop.
+  pure and tested — keep the decision there rather than inline in the frame loop. The loop scales
+  its speed by each frame's real length, so a 120Hz screen does not scroll twice as fast.
+- **Judge drag smoothness on a release build.** A debuggable Compose build drops frames during a
+  drag that the release build does not; the jank reported in Phase 6 was entirely that.
 
 ## How editing works
 

@@ -14,22 +14,34 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerId
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** How close to an edge the finger must get before the list starts scrolling itself. */
 private val AutoScrollEdge = 64.dp
 
-/** Fastest auto-scroll, in pixels per frame, reached at the very edge of the list. */
+/**
+ * Fastest auto-scroll, in pixels per 60Hz frame, reached at the very edge of the list. The scroll
+ * loop scales it by how long each frame actually took, so a 120Hz screen scrolls no faster.
+ */
 private const val MaxAutoScrollPerFrame = 18f
+
+/** One frame at 60Hz, the rate [MaxAutoScrollPerFrame] is expressed in. */
+private const val ReferenceFrameNanos = 16_666_667f
 
 /**
  * How far the finger must travel before auto-scroll is allowed to start.
@@ -95,6 +107,56 @@ internal fun floatingOffset(
     return center - (slotOffset + half)
 }
 
+/** One laid-out row, as [dragTarget] needs it: its index among the rows and where it sits. */
+internal data class RowSlot(val index: Int, val offset: Int, val size: Int, val isDragged: Boolean)
+
+/**
+ * Where the dragged row should go, given the rows currently laid out ([slots], top to bottom), the
+ * index it is at now ([current]) and where the finger is ([pointerY]).
+ *
+ * The row trades places with a neighbour once the finger passes that neighbour's midpoint — the
+ * rule `ItemTouchHelper` uses. Measured against laid-out positions rather than whatever is drawn
+ * mid-animation, a swap can never undo itself on the next frame: after it, the finger sits on the
+ * near side of the displaced row's new midpoint whatever the two rows' heights.
+ *
+ * The target only ever walks across rows that are laid out. A finger past either end of them —
+ * over the status bar, the navigation bar, the list's padding — leaves the row at the last one it
+ * reached, and auto-scroll brings more in. Pure so it can be tested directly.
+ */
+internal fun dragTarget(slots: List<RowSlot>, current: Int, pointerY: Float): Int {
+    if (slots.isEmpty()) return current
+    val own = slots.indexOfFirst { it.isDragged }
+
+    if (own == -1) {
+        // The dragged row has been scrolled out of the laid-out window. Put it back into it, in
+        // front of the first row whose midpoint is below the finger. Rows below the dragged one
+        // sit one index further on than they will once it is lifted out, which is the coordinate
+        // space the target is in, so a dragged row above the window shifts every index by one.
+        val shift = if (current < slots.first().index) 1 else 0
+        val before = slots.firstOrNull { pointerY < it.offset + it.size / 2f }
+        val index = before?.index ?: (slots.last().index + 1)
+        return (index - shift).coerceAtLeast(0)
+    }
+
+    // The layout has not caught up with the last move yet; its positions describe a list the
+    // target has already left, and walking them would move the row twice.
+    if (slots[own].index != current) return current
+
+    var target = current
+    for (i in own - 1 downTo 0) {
+        val above = slots[i]
+        if (pointerY < above.offset + above.size / 2f) target = above.index else break
+    }
+    if (target != current) return target
+    for (i in own + 1 until slots.size) {
+        val below = slots[i]
+        // A row below the dragged one is at its own index plus one in the list the dragged row has
+        // been lifted out of, so its index here is exactly the target that drops in after it.
+        if (pointerY > below.offset + below.size / 2f) target = below.index else break
+    }
+    return target
+}
+
 /**
  * Tracks an in-progress drag of one TODO row.
  *
@@ -107,6 +169,12 @@ internal fun floatingOffset(
  * On top of that preview the dragged row is drawn *floating*: offset from its slot by
  * [floatingOffsetFor] so it tracks the finger pixel by pixel, while the slot underneath it is the
  * gap it would drop into. Without that the row only ever moved a whole slot at a time.
+ *
+ * The gesture belongs to the *list*, not to the row. A row's handle only notices the drag begin
+ * and hands the pointer over ([onDragStart]); from then on the list's own pointer input feeds every
+ * movement to [onPointerEvent] until the finger lifts. A lazy list disposes rows it has no room
+ * for, and while the gesture lived on the handle, a row pushed out of the laid-out window took its
+ * drag with it — the item snapped back to where it started, mid-drag.
  *
  * Vertical position is tracked as a pointer position in *viewport* coordinates rather than as an
  * offset from the row's start, so auto-scrolling (which moves content under a stationary finger)
@@ -139,10 +207,23 @@ class TodoDragState(
     var targetDepth by mutableIntStateOf(0)
         private set
 
+    /**
+     * The depths a dragged row may take at a given target index. Supplied by the list, which has
+     * the tree; used to keep sideways overshoot from piling up (see [onDrag]).
+     */
+    var depthRange: (itemId: String, targetIndex: Int) -> IntRange = { _, _ -> 0..Int.MAX_VALUE }
+
+    /** The pointer the drag follows; any other finger on the screen is ignored. */
+    private var pointerId: PointerId? = null
     private var pointerY by mutableFloatStateOf(0f)
-    private var startDepth = 0
-    private var horizontalDrag = 0f
     private var startPointerY = 0f
+
+    /**
+     * The depth the finger is asking for, in levels, before rounding. Sideways movement adds to it;
+     * see [onDrag] for why it is clamped as it goes rather than at the end.
+     */
+    private var depth = 0f
+    private var horizontalDrag = 0f
     private var settleOffset by mutableFloatStateOf(0f)
     private var autoScrollJob: Job? = null
     private var settleJob: Job? = null
@@ -153,38 +234,78 @@ class TodoDragState(
      * so a tremor during a long hold never adds up to a move.
      */
     private val hasMoved: Boolean
-        get() = kotlin.math.abs(horizontalDrag) + kotlin.math.abs(pointerY - startPointerY) >=
-            activationDistancePx
+        get() = abs(horizontalDrag) + abs(pointerY - startPointerY) >= activationDistancePx
 
     val isDragging: Boolean get() = draggedItemId != null
 
     /** The row drawn lifted off the list: the one under the finger, or the one settling after a drop. */
     val floatingItemId: String? get() = draggedItemId ?: settlingItemId
 
-    fun onDragStart(itemId: String, rowIndex: Int, depth: Int) {
+    /**
+     * A row's handle has seen [pointer] move past touch slop. The drag follows that pointer from
+     * here on, wherever it goes, and [overSlop] is the movement the slop check already used up.
+     */
+    fun onDragStart(itemId: String, rowIndex: Int, depth: Int, pointer: PointerId, overSlop: Offset) {
         endSettle()
 
         val row = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == rowIndex }
         pointerY = row?.let { it.offset + it.size / 2f } ?: 0f
         startPointerY = pointerY
-        startDepth = depth
+        this.depth = depth.toFloat()
         horizontalDrag = 0f
+        pointerId = pointer
 
         draggedItemId = itemId
         targetIndex = rowIndex
         targetDepth = depth
 
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        onDrag(overSlop.x, overSlop.y)
         startAutoScroll()
     }
 
-    fun onDrag(deltaX: Float, deltaY: Float) {
+    /**
+     * Every pointer event the list sees, on the initial pass, so a drag in progress can claim its
+     * pointer's movement before anything else — the list's own scrolling, swipe-to-delete — reads
+     * it. The drag ends when its pointer lifts, or when the gesture is cancelled, which Compose
+     * reports as that pointer going up; either way the row stays where the preview has it.
+     */
+    fun onPointerEvent(
+        changes: List<PointerInputChange>,
+        onCommit: (itemId: String, targetIndex: Int, targetDepth: Int) -> Unit,
+    ) {
         if (!isDragging) return
+        val change = changes.firstOrNull { it.id == pointerId }
+        if (change == null || !change.pressed) {
+            change?.consume()
+            onDragEnd(onCommit)
+            return
+        }
+        val delta = change.positionChangeIgnoreConsumed()
+        change.consume()
+        onDrag(delta.x, delta.y)
+    }
 
+    /**
+     * Moves the drag by a finger movement.
+     *
+     * Sideways travel adjusts the requested depth, and that is clamped to what the current slot
+     * allows *as it accumulates*. Clamped only at the end, dragging four levels right where one
+     * was allowed meant dragging three levels back before the row would come out again. Vertical
+     * travel leaves the request alone, so a depth the finger asked for survives crossing rows
+     * that cannot take it, and comes back where it can.
+     */
+    fun onDrag(deltaX: Float, deltaY: Float) {
         pointerY += deltaY
         horizontalDrag += deltaX
 
-        targetDepth = startDepth + (horizontalDrag / indentPx).roundToInt()
+        val itemId = draggedItemId ?: return
+        if (deltaX != 0f) {
+            val range = depthRange(itemId, targetIndex)
+            depth = (depth + deltaX / indentPx)
+                .coerceIn(range.first - DepthSlack, range.last + DepthSlack)
+        }
+        targetDepth = depth.roundToInt()
         updateTargetIndex()
     }
 
@@ -203,8 +324,6 @@ class TodoDragState(
         onCommit(itemId, index, depth)
         startSettle(itemId, released)
     }
-
-    fun onDragCancel() = stop()
 
     /**
      * How far the row for [itemId] should be drawn from its slot, or zero for any row that is
@@ -237,6 +356,7 @@ class TodoDragState(
         autoScrollJob?.cancel()
         autoScrollJob = null
         draggedItemId = null
+        pointerId = null
         horizontalDrag = 0f
     }
 
@@ -267,45 +387,42 @@ class TodoDragState(
     }
 
     /**
-     * The row under the finger becomes the target. Because the preview puts the dragged row at
-     * [targetIndex], the index under the finger is already the index to move to.
+     * Re-aims the drag at the slot under the finger; see [dragTarget] for the rule.
+     *
+     * Moving the dragged row also pins the scroll position to the first visible *index*. A lazy
+     * list otherwise holds on to the *key* of its first visible row, so moving the dragged row
+     * into or out of the top slot scrolled the list to chase whichever row had been there — off
+     * by a row each time, and taking the dragged row off the top of the screen.
      */
     private fun updateTargetIndex() {
-        val info = listState.layoutInfo
-        val visible = info.visibleItemsInfo
-        val first = visible.firstOrNull()
-        val last = visible.lastOrNull()
-
-        // The dragged row's own slot wins outright. Its neighbours animate into the places it
-        // vacates, and a plain hit test against a row that is still sliding can put the target back
-        // where it came from, one frame after it left — which reads as the row flickering between
-        // two slots.
-        val own = visible.firstOrNull { it.key == draggedItemId }
-        if (own != null && pointerY >= own.offset && pointerY < own.offset + own.size) return
-
-        val hovered = visible.firstOrNull { item ->
-            pointerY >= item.offset && pointerY < item.offset + item.size
+        val slots = listState.layoutInfo.visibleItemsInfo.map {
+            RowSlot(it.index, it.offset, it.size, isDragged = it.key == draggedItemId)
         }
+        val target = dragTarget(slots, targetIndex, pointerY)
+        if (target == targetIndex) return
 
-        targetIndex = when {
-            hovered != null -> hovered.index
-            // Above everything on screen — including the list's top padding, which is inside the
-            // viewport but above the first row.
-            first != null && pointerY < first.offset -> first.index
-            // Below everything on screen, which is mostly the padding under the last row.
-            last != null && pointerY >= last.offset + last.size -> info.totalItemsCount - 1
-            // Between two rows while one of them is still sliding: keep the target we have rather
-            // than guessing at an end of the list.
-            else -> return
-        }.coerceAtLeast(0)
+        listState.requestScrollToItem(
+            listState.firstVisibleItemIndex,
+            listState.firstVisibleItemScrollOffset,
+        )
+        targetIndex = target
     }
 
     /** Scrolls the list while the finger rests near an edge, accelerating closer to it. */
     private fun startAutoScroll() {
         autoScrollJob?.cancel()
         autoScrollJob = scope.launch {
+            var lastFrame = 0L
             while (isActive) {
-                withFrameNanos { }
+                val frame = withFrameNanos { it }
+                // Scaled by the frame's real length, so the list scrolls at the same speed on a
+                // 60Hz and a 120Hz screen. The first frame has nothing to measure against.
+                val frameScale = if (lastFrame == 0L) {
+                    1f
+                } else {
+                    ((frame - lastFrame) / ReferenceFrameNanos).coerceIn(0f, MaxFrameScale)
+                }
+                lastFrame = frame
                 val info = listState.layoutInfo
 
                 val speed = autoScrollSpeed(
@@ -316,16 +433,32 @@ class TodoDragState(
                     hasMoved = hasMoved,
                     canScrollUp = listState.canScrollBackward,
                     canScrollDown = listState.canScrollForward,
-                )
+                ) * frameScale
 
                 if (speed != 0f) {
-                    listState.scrollBy(speed)
+                    try {
+                        listState.scrollBy(speed)
+                    } catch (e: CancellationException) {
+                        // Another scroll took over the list for a moment — pinning the scroll
+                        // position does that. Only a cancelled drag ends this loop.
+                        if (!isActive) throw e
+                    }
                     updateTargetIndex()
                 }
             }
         }
     }
 }
+
+/**
+ * How far past the deepest (or shallowest) allowed level a sideways drag may wander before it is
+ * held. Just under half a level, so a finger at the limit still rounds to the limit while the first
+ * movement back the other way reaches the next level down within half a step.
+ */
+private const val DepthSlack = 0.49f
+
+/** A stalled frame scrolls at most this many frames' worth, rather than lurching. */
+private const val MaxFrameScale = 3f
 
 @Composable
 fun rememberTodoDragState(listState: LazyListState): TodoDragState {

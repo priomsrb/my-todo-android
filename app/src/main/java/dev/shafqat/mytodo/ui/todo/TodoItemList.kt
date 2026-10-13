@@ -3,7 +3,9 @@ package dev.shafqat.mytodo.ui.todo
 import kotlinx.coroutines.delay
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +28,7 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,7 +38,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
@@ -46,11 +51,15 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dev.shafqat.mytodo.R
+import dev.shafqat.mytodo.model.FlatRow
 import dev.shafqat.mytodo.model.TodoItem
+import dev.shafqat.mytodo.model.allowedDepthRange
 import dev.shafqat.mytodo.model.canIndentItem
 import dev.shafqat.mytodo.model.canOutdentItem
+import dev.shafqat.mytodo.model.flattenForMove
 import dev.shafqat.mytodo.model.flattenVisible
 import dev.shafqat.mytodo.model.moveSubtree
+import dev.shafqat.mytodo.model.removeItem
 import dev.shafqat.mytodo.model.updateItem
 
 /**
@@ -178,6 +187,21 @@ fun TodoItemList(
     }
     val rows = previewItems.flattenVisible()
 
+    // The drag holds sideways overshoot to the depths the slot under it allows. The tree with the
+    // dragged item lifted out is the same for the whole drag, so it is worked out once per drag.
+    SideEffect {
+        var cachedId: String? = null
+        var cachedRows: List<FlatRow> = emptyList()
+        dragState.depthRange = { itemId, index ->
+            if (itemId != cachedId) {
+                cachedId = itemId
+                cachedRows = items.removeItem(itemId).flattenForMove()
+            }
+            allowedDepthRange(cachedRows, index.coerceIn(0, cachedRows.size))
+        }
+    }
+    val commitMove by rememberUpdatedState(onMove)
+
     // A widget tap on an item's text asks for it to be brought into view. Spent once, whether or
     // not the item is there (hidden as finished, say): a request left outstanding would scroll
     // again the next time the list changed.
@@ -204,7 +228,23 @@ fun TodoItemList(
     // and nothing reflows when an edit starts.
     var toolbarHeight by remember { mutableStateOf(0.dp) }
     val density = LocalDensity.current
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            // A drag in progress follows its pointer from here, above every row, so it lasts until
+            // the finger lifts — wherever the finger goes, and whatever happens to the row it
+            // started on. The initial pass gets the movement before the list can scroll with it.
+            .pointerInput(dragState) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        dragState.onPointerEvent(event.changes) { id, index, depth ->
+                            commitMove(id, index, depth)
+                        }
+                    }
+                }
+            },
+    ) {
         LazyColumn(
             state = listState,
             // The viewport stops at the toolbar and the keyboard rather than running on beneath
@@ -287,24 +327,28 @@ fun TodoItemList(
                         } else {
                             Modifier.pointerInput(row.item.id) {
                                 // No long press: the handle exists to be dragged, so the drag
-                                // starts as soon as the finger moves past touch slop. The handle
-                                // consumes the gesture, which is what keeps the same movement
-                                // from scrolling the list or arming swipe-to-delete instead.
-                                detectDragGestures(
-                                    onDragStart = {
+                                // starts as soon as the finger moves past touch slop. Consuming
+                                // that movement is what keeps it from scrolling the list or arming
+                                // swipe-to-delete instead. Past the slop the handle lets go: the
+                                // list follows the pointer from there (see TodoDragState), so the
+                                // drag outlives this row being disposed.
+                                awaitEachGesture {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    var overSlop = Offset.Zero
+                                    val drag = awaitTouchSlopOrCancellation(down.id) { change, over ->
+                                        change.consume()
+                                        overSlop = over
+                                    }
+                                    if (drag != null) {
                                         dragState.onDragStart(
                                             row.item.id,
                                             currentIndex,
                                             currentDepth,
+                                            drag.id,
+                                            overSlop,
                                         )
-                                    },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        dragState.onDrag(amount.x, amount.y)
-                                    },
-                                    onDragEnd = { dragState.onDragEnd(onMove) },
-                                    onDragCancel = { dragState.onDragCancel() },
-                                )
+                                    }
+                                }
                             }
                         },
                         onToggleDone = { done -> onToggleDone(row.item.id, done) },

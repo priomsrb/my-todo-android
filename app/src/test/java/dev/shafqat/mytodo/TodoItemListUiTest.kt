@@ -9,6 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -22,6 +24,7 @@ import dev.shafqat.mytodo.ui.theme.MyTodoTheme
 import dev.shafqat.mytodo.ui.todo.IndentPerLevel
 import dev.shafqat.mytodo.ui.todo.TodoItemList
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -223,6 +226,97 @@ class TodoItemListUiTest {
                 renderedOrder,
             )
         }
+    }
+
+    private val longList = (0 until 40).map { TodoItem(id = "item$it", text = "Item $it") }
+
+    @Test
+    fun `a finger dragged far past the bottom of a long list does not cancel the drag`() {
+        // The regression: a finger below the last visible row — over the navigation bar, say —
+        // aimed the row at the end of the *whole* list. Its slot was then far off screen, the lazy
+        // list disposed the row, the gesture living on its handle died with it, and the item
+        // snapped back to where it started.
+        composeRule.setContent { Harness(longList) }
+
+        composeRule.onAllNodesWithContentDescription("Reorder")[2].performTouchInput {
+            down(center)
+            val step = rowHeightPx()
+            repeat(30) {
+                moveBy(Offset(0f, step))
+                advanceEventTime(16)
+            }
+            up()
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(40, renderedOrder.size)
+        val landed = renderedOrder.indexOf("Item 2")
+        assertTrue("Item 2 should have moved down, but is at $landed", landed > 2)
+        assertTrue("Item 2 should land on screen, not at the end, but is at $landed", landed < 39)
+    }
+
+    @Test
+    fun `dragging a row into the top visible slot of a scrolled list keeps the drag`() {
+        // The regression: the lazy list holds its scroll position by the *key* of the first visible
+        // row. Moving the dragged row into that slot scrolled the old first row back into place
+        // and pushed the dragged one off the top, where it was disposed and its drag cancelled.
+        composeRule.setContent { Harness(longList) }
+        composeRule.onNode(hasScrollAction()).performScrollToIndex(10)
+        composeRule.waitForIdle()
+
+        val target = composeRule.onNodeWithText("Item 11").getUnclippedBoundsInRoot()
+        val handles = composeRule.onAllNodesWithContentDescription("Reorder")
+        val handle = (0 until handles.fetchSemanticsNodes().size)
+            .map { handles[it] }
+            .first { node ->
+                val bounds = node.getUnclippedBoundsInRoot()
+                bounds.top >= target.top - 30.dp && bounds.bottom <= target.bottom + 30.dp
+            }
+
+        handle.performTouchInput {
+            down(center)
+            val total = rowHeightPx() + viewConfiguration.touchSlop
+            repeat(4) {
+                moveBy(Offset(0f, -total / 4f))
+                advanceEventTime(16)
+            }
+            up()
+        }
+        composeRule.waitForIdle()
+
+        assertEquals("Item 11", renderedOrder[10])
+        assertEquals("Item 10", renderedOrder[11])
+        // And the list did not scroll to chase the row that used to be on top: the dropped row is
+        // still on screen, where the finger left it.
+        val dropped = composeRule.onNodeWithText("Item 11").getUnclippedBoundsInRoot()
+        assertTrue("Item 11 should still be on screen, but its top is ${dropped.top}", dropped.top >= 0.dp)
+    }
+
+    @Test
+    fun `overshooting sideways does not have to be undone before the depth changes back`() {
+        // The regression: the depth followed the total sideways travel, clamped only afterwards,
+        // so dragging four levels right where one was allowed meant dragging three back before
+        // the row would move at all.
+        composeRule.setContent { Harness() }
+        val indent = with(composeRule.density) { IndentPerLevel.toPx() }
+
+        composeRule.onAllNodesWithContentDescription("Reorder")[1].performTouchInput {
+            down(center)
+            val right = 4 * indent + viewConfiguration.touchSlop
+            repeat(4) {
+                moveBy(Offset(right / 4f, 0f))
+                advanceEventTime(16)
+            }
+            repeat(4) {
+                moveBy(Offset(-indent / 4f, 0f))
+                advanceEventTime(16)
+            }
+            up()
+        }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "Bravo", "Charlie", "Delta"), renderedOrder)
+        assertEquals("one step back left should undo the nesting", 0, renderedRows[1].second)
     }
 
     @Test

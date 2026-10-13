@@ -180,6 +180,14 @@ Worth knowing before Phase 6:
 - [x] Fixed while wiring that up: a finger in the list's *top padding* — above the first row but
       inside the viewport — hit no row and fell through to "past the end of the list", so nudging
       the top row up by about half a row flung it to the bottom
+- [x] Drag robustness pass. A drag that needed the list to scroll used to die and snap the row
+      back: the gesture lived on the row's handle, and the row was disposed whenever its slot left
+      the laid-out window — a finger below the last visible row aimed it at the end of the whole
+      list, and the lazy list's key-based scroll anchoring pushed it off the top. The list now owns
+      the gesture once the handle has seen it start, targets move by neighbour midpoints within the
+      rows on screen, the scroll position is pinned to an index during a move, sideways overshoot
+      no longer has to be undone, and auto-scroll speed no longer depends on the refresh rate.
+      The choppiness reported alongside was the debug build; a release build is smooth
 - [x] Swipe-to-delete is now a setting, off by default. The rows are where a finger lands to
       scroll, so the gesture fired by accident; the row's delete button is unaffected, and the
       undo snackbar still backs both
