@@ -53,6 +53,7 @@ fun SettingsScreen(
     val swipeToDeleteEnabled by viewModel.swipeToDeleteEnabled.collectAsStateWithLifecycle()
     val copyFormat by viewModel.copyFormat.collectAsStateWithLifecycle()
     val widgetTopLevelOnly by viewModel.widgetTopLevelOnly.collectAsStateWithLifecycle()
+    val widgetShowCount by viewModel.widgetShowCount.collectAsStateWithLifecycle()
     val widgetActionsAtTop by viewModel.widgetActionsAtTop.collectAsStateWithLifecycle()
     var showCopyFormatDialog by remember { mutableStateOf(false) }
 
@@ -147,6 +148,13 @@ fun SettingsScreen(
                 subtitle = stringResource(R.string.widget_actions_at_top_summary),
                 checked = widgetActionsAtTop,
                 onCheckedChange = viewModel::setWidgetActionsAtTop,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            SettingSwitchRow(
+                title = stringResource(R.string.widget_show_count),
+                subtitle = stringResource(R.string.widget_show_count_summary),
+                checked = widgetShowCount,
+                onCheckedChange = viewModel::setWidgetShowCount,
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             SettingRow(

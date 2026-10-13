@@ -45,6 +45,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { app.settings.setWidgetActionsAtTop(enabled) }
     }
 
+    val widgetShowCount: StateFlow<Boolean> = app.settings.widgetShowCount
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setWidgetShowCount(enabled: Boolean) {
+        viewModelScope.launch { app.settings.setWidgetShowCount(enabled) }
+    }
+
     val copyFormat: StateFlow<CopyFormat> = app.settings.copyFormat
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CopyFormat.Default)
 

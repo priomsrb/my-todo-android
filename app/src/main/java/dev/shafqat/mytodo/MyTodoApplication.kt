@@ -71,6 +71,9 @@ class MyTodoApplication : Application() {
         applicationScope.launch {
             settings.widgetActionsAtTop.drop(1).collectLatest { updateTodoWidgets() }
         }
+        applicationScope.launch {
+            settings.widgetShowCount.drop(1).collectLatest { updateTodoWidgets() }
+        }
     }
 
     /**

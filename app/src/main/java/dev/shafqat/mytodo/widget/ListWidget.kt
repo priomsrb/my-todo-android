@@ -71,6 +71,7 @@ class ListWidget : GlanceAppWidget() {
         val settings = context.todoApp.settings
         val initialTopLevelOnly = settings.widgetTopLevelOnly.first()
         val initialActionsAtTop = settings.widgetActionsAtTop.first()
+        val initialShowCount = settings.widgetShowCount.first()
 
         provideContent {
             GlanceTheme(colors = WidgetColors) {
@@ -84,13 +85,15 @@ class ListWidget : GlanceAppWidget() {
                         .collectAsState(initial = initialTopLevelOnly)
                     val actionsAtTop by settings.widgetActionsAtTop
                         .collectAsState(initial = initialActionsAtTop)
+                    val showCount by settings.widgetShowCount
+                        .collectAsState(initial = initialShowCount)
                     val heldKey by context.todoApp.recentlyTicked.key.collectAsState()
                     val list = lists.firstOrNull { it.id == listId }
 
                     if (list == null) {
                         WidgetMessage(context.getString(R.string.widget_list_missing))
                     } else {
-                        ListWidgetContent(list, topLevelOnly, actionsAtTop, heldKey)
+                        ListWidgetContent(list, topLevelOnly, actionsAtTop, showCount, heldKey)
                     }
                 }
             }
@@ -107,6 +110,7 @@ private fun ListWidgetContent(
     list: TodoList,
     topLevelOnly: Boolean,
     actionsAtTop: Boolean,
+    showCount: Boolean,
     heldKey: String?,
 ) {
     val context = LocalContext.current
@@ -121,7 +125,7 @@ private fun ListWidgetContent(
         contentAlignment = Alignment.BottomEnd,
     ) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
-            ListWidgetHeader(list, topLevelOnly, actionsAtTop)
+            ListWidgetHeader(list, topLevelOnly, actionsAtTop, showCount)
 
             if (rows.isEmpty()) {
                 Text(
@@ -221,7 +225,12 @@ private val ActionRowHeight = ActionButtonSize
 
 /** The list's name and how much of it is done. Tapping it opens that list in the app. */
 @Composable
-private fun ListWidgetHeader(list: TodoList, topLevelOnly: Boolean, actionsAtTop: Boolean) {
+private fun ListWidgetHeader(
+    list: TodoList,
+    topLevelOnly: Boolean,
+    actionsAtTop: Boolean,
+    showCount: Boolean,
+) {
     val context = LocalContext.current
     val (done, total) = list.widgetProgress(topLevelOnly)
 
@@ -247,14 +256,16 @@ private fun ListWidgetHeader(list: TodoList, topLevelOnly: Boolean, actionsAtTop
                 maxLines = 1,
                 modifier = GlanceModifier.defaultWeight(),
             )
-            Text(
-                text = "$done/$total",
-                style = TextStyle(
-                    color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = WidgetCaptionSize,
-                ),
-                modifier = GlanceModifier.padding(horizontal = if (actionsAtTop) 8.dp else 0.dp),
-            )
+            if (showCount) {
+                Text(
+                    text = "$done/$total",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = WidgetCaptionSize,
+                    ),
+                    modifier = GlanceModifier.padding(horizontal = if (actionsAtTop) 8.dp else 0.dp),
+                )
+            }
         }
         if (actionsAtTop) ListWidgetActions(list)
     }
