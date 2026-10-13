@@ -18,6 +18,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Signed with the per-machine debug key so a release build installs over a debug
+            // one (scripts/install-phone.sh) and keeps the app's data. There is no store key.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

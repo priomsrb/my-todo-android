@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Build the debug APK from the current working tree and install it onto the
+# Build the release APK from the current working tree and install it onto the
 # phone plugged in over USB, keeping the app's data. Then launch it.
 #
 # Usage: scripts/install-phone.sh [--no-launch]
 #
 # Targets the USB device only (adb -d), so a running emulator is left alone.
-# `./gradlew installDebug` is not used because it installs onto every
+# `./gradlew installRelease` is not used because it installs onto every
 # connected device at once.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
 PACKAGE="dev.shafqat.mytodo"
-APK="app/build/outputs/apk/debug/app-debug.apk"
+APK="app/build/outputs/apk/release/app-release.apk"
 LAUNCH=1
 [[ "${1:-}" == "--no-launch" ]] && LAUNCH=0
 
@@ -39,11 +39,12 @@ if [[ "$state" != "device" ]]; then
 fi
 
 model=$(adb -s "$serial" shell getprop ro.product.model | tr -d '\r')
-echo "==> Building debug APK ($(git rev-parse --short HEAD)$(git diff --quiet HEAD || echo '+dirty'))"
-./gradlew :app:assembleDebug
+echo "==> Building release APK ($(git rev-parse --short HEAD)$(git diff --quiet HEAD || echo '+dirty'))"
+./gradlew :app:assembleRelease
 
 echo "==> Installing onto $model ($serial)"
-# -r keeps the app's data; the debug keystore is per-machine, so an APK
+# -r keeps the app's data. Release builds are signed with the debug keystore
+# (see app/build.gradle.kts), which is per-machine, so an APK
 # signed elsewhere will fail with INSTALL_FAILED_UPDATE_INCOMPATIBLE.
 adb -s "$serial" install -r "$APK"
 

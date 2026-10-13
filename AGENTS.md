@@ -86,7 +86,7 @@ refuse to compile against 36.
 ./gradlew :app:assembleDebug          # build the debug APK
 ./gradlew :app:testDebugUnitTest      # all tests: pure logic + Compose UI (Robolectric)
 ./gradlew :app:lintDebug              # Android lint
-scripts/install-phone.sh              # build + install onto the USB phone only, keep data, launch
+scripts/install-phone.sh              # build release + install onto the USB phone only, keep data, launch
 ```
 
 **`installDebug` installs onto every device adb can see**, with no prompt: that is the Android
