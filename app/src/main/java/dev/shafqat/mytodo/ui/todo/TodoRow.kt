@@ -76,7 +76,6 @@ import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.DividerStyle
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.dividerOf
-import dev.shafqat.mytodo.model.totalCount
 import kotlinx.coroutines.flow.first
 
 /** Indent applied per nesting level. Depth is unbounded, so this only scales the padding. */
@@ -127,7 +126,7 @@ data class RowEditCallbacks(
 /**
  * One TODO row: drag handle, expand chevron, checkbox, text, delete.
  *
- * Ticked items render grayed out and struck through. A collapsed parent shows how many descendants
+ * Ticked items render grayed out and struck through. A collapsed parent shows how many direct children
  * are hidden underneath it. The drag handle starts a reorder the moment the finger moves on it, no
  * hold needed; while a row is being dragged it lifts with a shadow and its indent animates to the
  * depth it would land at. [isDragging] stays on for the moment after the drop while the row slides
@@ -340,7 +339,7 @@ fun TodoRow(
         if (item.collapsed && hasChildren) {
             FirstLine(firstLine) {
                 Text(
-                    text = item.children.totalCount().toString(),
+                    text = item.children.size.toString(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 8.dp),

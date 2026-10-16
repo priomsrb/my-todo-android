@@ -617,7 +617,7 @@ app/src/test/java/dev/shafqat/mytodo/
   inset to sit level with the box, and it carries the same toggle so the whole row is still the tap
   target.
 - **A hidden subtree is shown as a count, and a tick takes the subtree with it.** Each top-level
-  row carries `hiddenOpenCount` — unfinished, non-blank items at any depth beneath it — drawn beside
+  row carries `hiddenOpenCount` — unfinished, non-blank direct children, not deeper descendants — drawn beside
   the checkbox rather than in its text, so a ticked parent's strikethrough does not run through it.
   In this mode alone a tick cascades (`setSubtreeDone`, flagged by the row's `cascade` action
   parameter): the row is all there is of that subtree on the home screen, so there is nowhere else

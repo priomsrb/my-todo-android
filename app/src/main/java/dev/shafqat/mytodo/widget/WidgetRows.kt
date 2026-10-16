@@ -20,7 +20,7 @@ data class WidgetRow(
     val done: Boolean,
     val depth: Int,
     /**
-     * How many unfinished items sit beneath this row without rows of their own — non-zero only when
+     * How many unfinished direct children sit beneath this row without rows of their own — non-zero only when
      * the widget is showing top-level items alone. A done parent with a count still has work in it.
      */
     val hiddenOpenCount: Int = 0,
@@ -81,8 +81,7 @@ fun TodoList.widgetProgress(topLevelOnly: Boolean): Pair<Int, Int> =
     }
 
 /**
- * Unfinished items anywhere in this subtree. Blank rows are gaps the user left, not work, so they
- * are not counted.
+ * Unfinished items among these direct children; deeper levels are not counted. Blank rows are gaps
+ * the user left, not work, so they are not counted either.
  */
-private fun List<TodoItem>.openCount(): Int =
-    sumOf { (if (!it.done && it.text.isNotBlank()) 1 else 0) + it.children.openCount() }
+private fun List<TodoItem>.openCount(): Int = count { !it.done && it.text.isNotBlank() }

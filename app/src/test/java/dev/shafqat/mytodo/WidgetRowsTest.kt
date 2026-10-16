@@ -115,7 +115,7 @@ class WidgetRowsTest {
     }
 
     @Test
-    fun `the open count reaches every level and skips blank rows`() {
+    fun `the open count takes direct children only and skips blank rows`() {
         val deep = TodoList(
             fileName = "deep.md",
             items = listOf(
@@ -133,7 +133,8 @@ class WidgetRowsTest {
             ),
         )
 
-        assertEquals(listOf(2), deep.widgetRows(topLevelOnly = true).map { it.hiddenOpenCount })
+        // D only: B is done, C sits a level below, and the gap is not work.
+        assertEquals(listOf(1), deep.widgetRows(topLevelOnly = true).map { it.hiddenOpenCount })
     }
 
     @Test
