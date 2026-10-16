@@ -213,7 +213,9 @@ class TodoListViewModel(
         val item = items.findItem(itemId) ?: return null
         if (item.text.isNotEmpty() || item.children.isNotEmpty()) return null
 
-        val rows = items.flattenVisible()
+        // The row above on screen: on a list hiding its finished items, the one above in the file
+        // may be hidden, and an editor moved onto a row that is not drawn is an edit that ends.
+        val rows = list.value?.visibleItems.orEmpty().flattenVisible()
         val index = rows.indexOfFirst { it.item.id == itemId }
         val above = rows.getOrNull(index - 1)?.item ?: return null
 

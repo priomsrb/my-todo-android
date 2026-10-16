@@ -92,11 +92,16 @@ interface TodoRepository {
 
     /**
      * Moves an item, and everything under it, to [targetIndex] among the visible rows at
-     * [targetDepth]. Both are interpreted as described on [dev.shafqat.mytodo.model.moveSubtree].
+     * [targetDepth]. Both are interpreted as described on [dev.shafqat.mytodo.model.moveSubtree],
+     * against the rows the list is showing — without its finished items, when it hides them.
+     * Hidden items stay where they are; see [dev.shafqat.mytodo.model.placedAsIn].
      */
     suspend fun moveItem(listId: String, itemId: String, targetIndex: Int, targetDepth: Int)
 
-    /** Nests an item one level deeper, under the sibling above it. A no-op where that is illegal. */
+    /**
+     * Nests an item one level deeper, under the sibling above it on screen. A no-op where that is
+     * illegal. Like [moveItem], it never nests under an item the list is hiding.
+     */
     suspend fun indentItem(listId: String, itemId: String)
 
     /** Lifts an item one level out of its parent, landing it after its former siblings. */

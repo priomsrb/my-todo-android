@@ -231,6 +231,7 @@ app/src/test/java/dev/shafqat/mytodo/
   DragOverlayTest.kt         where the floating row is drawn relative to its slot
   DragTargetTest.kt          which slot a dragged row aims at, and never one off screen
   OutlineEditTest.kt         indent/outdent and putting a deleted subtree back
+  HiddenMoveTest.kt          moves and Tab/Enter worked out among visible rows, hidden ones left alone
   CompletedTest.kt           hiding finished items vs. sinking them
   ArchiveTest.kt             archiving to the sibling file, restoring, undo, rename/delete following the list
   SearchTest.kt              matching across lists
@@ -471,10 +472,17 @@ app/src/test/java/dev/shafqat/mytodo/
   the markdown, exactly as dragging each finished item down by hand would.
 - **A done item with unfinished descendants is not hidden**, because its children would otherwise be
   orphaned or silently promoted a level.
-- **Reordering is off while completed items are hidden.** A drag is a row index, and a filtered list
-  does not have the same indices; rather than translate between two coordinate spaces, the drag
-  handle is hidden. Everything else — editing, indent, delete, collapse — is keyed by item id and
-  works unchanged.
+- **Edits that place an item are worked out among the rows on screen.** A drag, Tab, Shift-Tab and
+  Enter all arrive in visible-row coordinates, and a list hiding its finished items has fewer rows
+  than its tree. Rather than translate indices between the two, the repository's `rearrange` applies
+  the edit to `visibleItems` and `placedAsIn` (in `model/TreeMove.kt`, pure and tested in
+  `HiddenMoveTest`) carries only its outcome to the whole tree: the item's new parent, and the
+  sibling on screen just above it. It lands straight after that sibling — before any hidden items
+  that followed — or first under its parent. Hidden items never move; the moved item takes its
+  hidden children along. An item already after that sibling stays put, so a refused Tab or a row
+  put back where it was does not shuffle it past hidden neighbours. With nothing hidden this is
+  exactly `moveSubtree`, which the tests assert for every move. Done on the whole tree, Tab nested
+  an item under a hidden row above it, and the item vanished with it.
 - **Per-list colour and "hide completed" live in `ListPrefs`, keyed by file name**, in a third
   DataStore file (`list_prefs`). Same reasoning as collapse: a write re-emits the whole preferences
   object, so stores that are read for different reasons do not share a file. They follow a rename

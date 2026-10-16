@@ -18,11 +18,13 @@ import dev.shafqat.mytodo.model.isArchiveFile
 import dev.shafqat.mytodo.model.splitArchivable
 import dev.shafqat.mytodo.model.completedLast
 import dev.shafqat.mytodo.model.fileNameFor
+import dev.shafqat.mytodo.model.findItem
 import dev.shafqat.mytodo.model.hasSameContentAs
 import dev.shafqat.mytodo.model.indentItem
 import dev.shafqat.mytodo.model.insertSubtree
 import dev.shafqat.mytodo.model.moveSubtree
 import dev.shafqat.mytodo.model.outdentItem
+import dev.shafqat.mytodo.model.placedAsIn
 import dev.shafqat.mytodo.model.removeItem
 import dev.shafqat.mytodo.model.uniqueFileName
 import dev.shafqat.mytodo.model.updateItem
@@ -293,20 +295,20 @@ class MarkdownTodoRepository(
 
     override suspend fun addItemAfter(listId: String, afterItemId: String, text: String): TodoItem {
         val item = TodoItem(text = text)
-        mutate(listId) { items ->
-            val row = items.visibleRowOf(afterItemId)
-            if (row == null) items + item else items.insertSubtree(item, row.index + 1, row.depth)
+        rearrange(listId, { item }) { shown ->
+            val row = shown.visibleRowOf(afterItemId)
+            if (row == null) shown + item else shown.insertSubtree(item, row.index + 1, row.depth)
         }
         return item
     }
 
     override suspend fun addItemBefore(listId: String, beforeItemId: String, text: String): TodoItem {
         val item = TodoItem(text = text)
-        mutate(listId) { items ->
-            val row = items.visibleRowOf(beforeItemId)
+        rearrange(listId, { item }) { shown ->
+            val row = shown.visibleRowOf(beforeItemId)
             // Its own row index at its own depth: the new item takes the slot, and the item that
             // was there — with everything under it — moves down one.
-            if (row == null) listOf(item) + items else items.insertSubtree(item, row.index, row.depth)
+            if (row == null) listOf(item) + shown else shown.insertSubtree(item, row.index, row.depth)
         }
         return item
     }
@@ -363,7 +365,7 @@ class MarkdownTodoRepository(
     }
 
     override suspend fun moveItem(listId: String, itemId: String, targetIndex: Int, targetDepth: Int) {
-        mutate(listId) { items -> items.moveSubtree(itemId, targetIndex, targetDepth) }
+        rearrange(listId, { it.findItem(itemId) }) { shown -> shown.moveSubtree(itemId, targetIndex, targetDepth) }
         rekeyCollapse(listId)
     }
 
@@ -382,12 +384,12 @@ class MarkdownTodoRepository(
     }
 
     override suspend fun indentItem(listId: String, itemId: String) {
-        mutate(listId) { items -> items.indentItem(itemId) }
+        rearrange(listId, { it.findItem(itemId) }) { shown -> shown.indentItem(itemId) }
         rekeyCollapse(listId)
     }
 
     override suspend fun outdentItem(listId: String, itemId: String) {
-        mutate(listId) { items -> items.outdentItem(itemId) }
+        rearrange(listId, { it.findItem(itemId) }) { shown -> shown.outdentItem(itemId) }
         rekeyCollapse(listId)
     }
 
@@ -517,7 +519,29 @@ class MarkdownTodoRepository(
         collapseStore.replaceKeysForFile(list.fileName, keys)
     }
 
-    private fun mutate(listId: String, transform: (List<TodoItem>) -> List<TodoItem>) {
+    private fun mutate(listId: String, transform: (List<TodoItem>) -> List<TodoItem>) =
+        mutateList(listId) { list -> transform(list.items) }
+
+    /**
+     * An edit that places one item, worked out among the rows on screen and carried over to the
+     * whole tree with [placedAsIn].
+     *
+     * Every edit made through here — a drag, Tab, Shift-Tab, Enter — arrives in the coordinates of
+     * what the list is showing, and a list hiding its finished items shows fewer rows than its tree
+     * has. Working those edits out on the whole tree nested items under rows nobody could see, and
+     * left them hidden there with them. [subtree] is the item being placed, read off the whole tree
+     * so that it brings its hidden children along; [edit] gets the rows on screen.
+     */
+    private fun rearrange(
+        listId: String,
+        subtree: (List<TodoItem>) -> TodoItem?,
+        edit: (shown: List<TodoItem>) -> List<TodoItem>,
+    ) = mutateList(listId) { list ->
+        val moving = subtree(list.items)
+        if (moving == null) list.items else list.items.placedAsIn(edit(list.visibleItems), moving)
+    }
+
+    private fun mutateList(listId: String, transform: (TodoList) -> List<TodoItem>) {
         var fileName: String? = null
         _lists.update { lists ->
             lists.map { list ->
@@ -525,7 +549,7 @@ class MarkdownTodoRepository(
                     list
                 } else {
                     fileName = list.fileName
-                    list.copy(items = transform(list.items))
+                    list.copy(items = transform(list))
                 }
             }
         }

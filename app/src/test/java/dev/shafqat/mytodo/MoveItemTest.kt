@@ -3,6 +3,7 @@ package dev.shafqat.mytodo
 import dev.shafqat.mytodo.data.MarkdownTodoRepository
 import dev.shafqat.mytodo.data.collapse.InMemoryCollapseStore
 import dev.shafqat.mytodo.data.store.LocalDirectoryStore
+import dev.shafqat.mytodo.model.ListPrefs
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.flattenVisible
 import dev.shafqat.mytodo.model.visibleIndexOf
@@ -199,5 +200,69 @@ class MoveItemTest {
         advanceUntilIdle()
 
         assertEquals(markdown, read())
+    }
+
+    // --- with finished items hidden ------------------------------------------------------------
+
+    private suspend fun TestScope.hidingRepository(markdown: String): MarkdownTodoRepository {
+        File(folder, "list.md").writeText(markdown)
+        val repository = repository()
+        repository.useStore(store())
+        advanceUntilIdle()
+        repository.setListPrefs("list.md", ListPrefs(hideCompleted = true))
+        return repository
+    }
+
+    @Test
+    fun `a drag among the rows on screen lands there in the file, hidden items left in place`() = runTest {
+        // On screen: A, B, D. Dragging D to the top is index 0 among those three.
+        val repository = hidingRepository("- [ ] A\n- [X] done\n- [ ] B\n- [ ] D\n\t- [X] d1\n")
+
+        repository.moveItem("list.md", itemId(repository, "D"), targetIndex = 0, targetDepth = 0)
+        advanceUntilIdle()
+
+        assertEquals("- [ ] D\n\t- [X] d1\n- [ ] A\n- [X] done\n- [ ] B\n", read())
+    }
+
+    @Test
+    fun `a drop goes straight after the row above it on screen`() = runTest {
+        val repository = hidingRepository("- [X] done\n- [ ] A\n- [ ] B\n- [X] done too\n- [ ] D\n")
+
+        // Between A and B on screen. Read as a file index, 1 would put it above A.
+        repository.moveItem("list.md", itemId(repository, "D"), targetIndex = 1, targetDepth = 0)
+        advanceUntilIdle()
+
+        assertEquals("- [X] done\n- [ ] A\n- [ ] D\n- [ ] B\n- [X] done too\n", read())
+    }
+
+    @Test
+    fun `Tab with items hidden nests under the row above on screen`() = runTest {
+        val repository = hidingRepository("- [ ] A\n- [X] done\n- [ ] B\n")
+
+        repository.indentItem("list.md", itemId(repository, "B"))
+        advanceUntilIdle()
+
+        assertEquals("- [ ] A\n\t- [ ] B\n- [X] done\n", read())
+    }
+
+    @Test
+    fun `Tab with only a hidden item above does nothing`() = runTest {
+        val repository = hidingRepository("- [ ] A\n\t- [X] done\n\t- [ ] a2\n")
+
+        repository.indentItem("list.md", itemId(repository, "a2"))
+        advanceUntilIdle()
+
+        assertEquals("- [ ] A\n\t- [X] done\n\t- [ ] a2\n", read())
+    }
+
+    @Test
+    fun `Enter on a row whose children are all hidden adds a sibling, not a child`() = runTest {
+        // On screen A has no children, so Enter on it is a new row below it at its own depth.
+        val repository = hidingRepository("- [ ] A\n\t- [X] done\n- [ ] B\n")
+
+        repository.addItemAfter("list.md", itemId(repository, "A"), "new")
+        advanceUntilIdle()
+
+        assertEquals("- [ ] A\n\t- [X] done\n- [ ] new\n- [ ] B\n", read())
     }
 }

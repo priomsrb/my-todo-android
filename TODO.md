@@ -95,6 +95,7 @@ Two decisions worth knowing about before Phase 5:
 
 - **Reordering is off while completed items are hidden.** Drag coordinates are row indices, and a
   filtered list does not have the same ones. The drag handle is hidden rather than left inert.
+  (Lifted in Phase 6j.)
 - **Editing an item still forgets that it was collapsed**, now on every keystroke rather than once
   per edit, because collapse keys are text paths. Still a Phase 6 item.
 
@@ -304,6 +305,16 @@ Worth knowing before Phase 6:
 - [x] A global setting (`widgetActionsAtTop`, off by default) moves the list widget's mic and "+"
       from the floating bottom corner into the header's right end; the trailing spacer goes with them
 - [x] Checked on the emulator
+
+## Phase 6j — Reordering with completed items hidden ✅
+
+- [x] The drag handle stays on a list hiding its finished items. The drag works out its move among
+      the rows on screen, and `placedAsIn` carries only its outcome — new parent, sibling on screen
+      above — over to the whole tree, landing straight after that sibling. Hidden items never move
+- [x] Tab, Shift-Tab and Enter go through the same path, which fixes Tab nesting an item under a
+      hidden one (where it vanished with it) and Enter on a row whose children are all hidden
+      adding a child; Backspace on a blank row carries the caret to the row above on screen
+- [x] With nothing hidden the result is exactly `moveSubtree`'s — asserted for every move
 
 ## Phase 7 — Robustness and extras
 

@@ -291,10 +291,6 @@ fun TodoListScreen(
 
                 else -> TodoItemList(
                     items = visibleItems,
-                    // Row indices are the drag's coordinate system, and a filtered list does not
-                    // have the same ones. Hiding finished items therefore parks reordering until
-                    // the whole list is on screen again.
-                    dragEnabled = !prefs.hideCompleted,
                     swipeToDeleteEnabled = swipeToDeleteEnabled,
                     focusItemId = focusItemId,
                     scrollToItemId = scrollToItemKey?.let {

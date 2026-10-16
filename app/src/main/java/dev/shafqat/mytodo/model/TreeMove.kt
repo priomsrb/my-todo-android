@@ -189,3 +189,76 @@ private class MutableNode(private val item: TodoItem) {
     fun toTodoItem(): TodoItem =
         item.copy(children = item.children + children.map { it.toTodoItem() })
 }
+
+/**
+ * This tree with [subtree] put where it sits in [arranged] — a copy of this tree with rows left out
+ * (finished items hidden), on which an edit has already been worked out.
+ *
+ * What lets a move be made among the rows on screen when some of the tree is not. Every edit here
+ * is worked out in visible-row coordinates, and a list hiding its finished items has visible rows
+ * that are not the tree's; rather than translate indices between the two, the edit is applied to
+ * the rows on screen and only its outcome is carried over: the item's new parent, and the sibling
+ * on screen just above it. In this tree it goes straight after that sibling — before any hidden
+ * items that followed it — or first under its parent when nothing on screen is above it.
+ *
+ * Hidden items never move, and nothing else does either: only [subtree], with all of its own
+ * children, hidden ones included. The parent always exists here, since hiding never removes an
+ * item that still has something visible beneath it. An item that already sits after that sibling
+ * and under that parent stays exactly where it is, so an edit that changed nothing on screen — a
+ * Tab that was refused, a row picked up and put back — does not shuffle it past hidden neighbours.
+ * With nothing hidden, [arranged] is the whole tree and the result is the same tree.
+ */
+fun List<TodoItem>.placedAsIn(arranged: List<TodoItem>, subtree: TodoItem): List<TodoItem> {
+    val target = arranged.placeOf(subtree.id) ?: return this
+    val shownIds = arranged.allIds()
+
+    val current = placeOf(subtree.id)
+    if (current != null && current.parentId == target.parentId &&
+        current.lastShownBefore(shownIds) == target.afterId
+    ) {
+        return this
+    }
+
+    val parentId = target.parentId
+    val afterId = target.afterId
+    val without = removeItem(subtree.id)
+    if (parentId != null && without.findItem(parentId) == null) return this
+    if (afterId != null && without.findItem(afterId) == null) return this
+    return without.insertChild(parentId, afterId, subtree)
+}
+
+/** Where an item hangs: its parent (null at the top level) and the siblings before it. */
+private data class Place(val parentId: String?, val siblingsBefore: List<String>) {
+
+    /** The sibling straight above it. */
+    val afterId: String? get() = siblingsBefore.lastOrNull()
+
+    /** The nearest sibling above it that is one of [shownIds], skipping any that are hidden. */
+    fun lastShownBefore(shownIds: Set<String>): String? = siblingsBefore.lastOrNull { it in shownIds }
+}
+
+private fun List<TodoItem>.placeOf(id: String, parentId: String? = null): Place? {
+    forEachIndexed { index, item ->
+        if (item.id == id) return Place(parentId, take(index).map { it.id })
+        item.children.placeOf(id, item.id)?.let { return it }
+    }
+    return null
+}
+
+private fun List<TodoItem>.allIds(): Set<String> =
+    flatMap { listOf(it.id) + it.children.allIds() }.toSet()
+
+/** [subtree] inserted under [parentId] (null: the top level), straight after [afterId] or first. */
+private fun List<TodoItem>.insertChild(parentId: String?, afterId: String?, subtree: TodoItem): List<TodoItem> {
+    if (parentId == null) {
+        val at = if (afterId == null) 0 else indexOfFirst { it.id == afterId } + 1
+        return take(at) + subtree + drop(at)
+    }
+    return map { item ->
+        if (item.id == parentId) {
+            item.copy(children = item.children.insertChild(null, afterId, subtree))
+        } else {
+            item.copy(children = item.children.insertChild(parentId, afterId, subtree))
+        }
+    }
+}
