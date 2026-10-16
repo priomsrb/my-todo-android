@@ -96,6 +96,16 @@ class VoiceCaptureActivity : ComponentActivity() {
             )
             putExtra(RecognizerIntent.EXTRA_PROMPT, getString(R.string.voice_prompt, listName))
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            // Hints that a pause is not the end of the thought. Recognisers are free to ignore
+            // them, so they cost nothing where unsupported.
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                SILENCE_MILLIS,
+            )
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                SILENCE_MILLIS,
+            )
         }
 
         // Asked for rather than looked up: package visibility hides most recognisers from a
@@ -178,6 +188,9 @@ class VoiceCaptureActivity : ComponentActivity() {
 
         /** Carried so the dictation prompt can name the list without waiting for storage. */
         const val EXTRA_LIST_NAME = "dev.shafqat.mytodo.extra.VOICE_LIST_NAME"
+
+        /** How long a silence the recogniser is asked to sit through before ending the capture. */
+        private const val SILENCE_MILLIS = 4000L
     }
 }
 
