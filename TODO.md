@@ -316,6 +316,24 @@ Worth knowing before Phase 6:
       adding a child; Backspace on a blank row carries the caret to the row above on screen
 - [x] With nothing hidden the result is exactly `moveSubtree`'s — asserted for every move
 
+## Phase 6k — Enter splits an item at the caret ✅
+
+- [x] Enter in the middle of an item splits it: the text before the caret stays on the item, the
+      text after it goes onto a new item on the row below, and the editor follows it there with
+      the caret at its start. A caret at the end carries nothing, which is the old plain Enter;
+      a caret at the very start still inserts above. `splitText` in `model/SplitText.kt` is pure
+      and tested
+- [x] Children stay with the top half, so with children showing the new item is the first of them
+      — the row below, exactly where Enter has always put it. The new item starts unticked
+- [x] A selection is deleted first, as in any editor, and the whitespace either side of the split
+      is trimmed
+- [x] The editor now reports only changes of *text* upward. A field also calls back when its
+      selection moves — including as it loses focus — and after a split that call put the whole
+      old text back on the item it had just been cut from
+- [x] Checked on the emulator through the soft keyboard's action key: a caret mid-item splits it
+      (children staying with the top half, typing landing before the carried text), a selected word
+      is deleted and the split trimmed, and Enter at the end still adds a blank row
+
 ## Phase 7 — Robustness and extras
 
 - [x] Move the todo folder: Settings → Move folder copies lists and archives to a picked, empty folder and switches to it (verify on a real SAF provider)
@@ -390,8 +408,9 @@ Worth knowing before Phase 6:
   mid-edit. It is also why the screen consumes the scaffold's insets: the bar asks for the
   keyboard inset itself and must not count the navigation bar twice.
 - **Tapping an item's text puts the caret where the finger landed**, not at the end. The end is
-  right for a row that opened without a tap — a new item from Enter, or one a widget opened — and
-  those still get it; a tap has a position and it is what the user meant. Tapping the empty space
+  right for a row that opened without a tap — a new item from "Add item", or one a widget opened —
+  and those still get it (an item split off by Enter opens with the caret at its start instead,
+  before the text it carried); a tap has a position and it is what the user meant. Tapping the empty space
   beside a short item still lands at the end of the line, so starting an edit to carry on typing
   costs nothing.
 

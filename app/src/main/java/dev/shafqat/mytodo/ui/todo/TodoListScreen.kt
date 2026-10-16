@@ -303,7 +303,7 @@ fun TodoListScreen(
                     onMove = viewModel::moveItem,
                     editActions = ItemEditActions(
                         onTextChange = viewModel::setText,
-                        onSplit = viewModel::addItemAfter,
+                        onSplit = viewModel::splitItem,
                         onSplitAbove = viewModel::addItemBefore,
                         onBackspaceOnEmpty = viewModel::removeEmptyItem,
                         onIndent = viewModel::indent,

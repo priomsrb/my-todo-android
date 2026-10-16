@@ -5,7 +5,8 @@ A Google Keep-inspired Android TODO app whose data lives in plain markdown files
 Current state: **Phase 6 complete** — lists are real markdown files, one per list, in a folder the
 user picks (app-private storage until they do); nested items expand and collapse, rows are lifted
 by the handle and dragged to reorder and re-nest, and items are typed inline (Enter for the next
-one — or, with the caret still at the start of one that has text, one above; on a blank row it
+one, splitting the item at the caret — or, with the caret still at the start of one that has text,
+one above; on a blank row it
 adds another blank, since those are the gaps a list is grouped with, and Backspace on a blank row
 takes it back off — Tab to nest, or the toolbar above the keyboard for the same two moves by
 thumb), deleted with an undo from the row's button (or by swiping, once that is switched on in settings), coloured per list, searched across
@@ -179,6 +180,7 @@ app/src/main/java/dev/shafqat/mytodo/
     Dictation.kt             cutting a dictated sentence into the items it names
     TextImport.kt            reading pasted text — bullets, numbers, checkboxes — as items
     TextExport.kt            writing items back out as text, for the clipboard
+    SplitText.kt             what Enter makes of an item's text: the half kept and the half carried
   data/
     TodoRepository.kt        interface the UI talks to
     MarkdownTodoRepository.kt  keeps the tree and the files in step; no Android APIs
@@ -243,6 +245,7 @@ app/src/test/java/dev/shafqat/mytodo/
   DictationTest.kt           where a dictated sentence is and is not cut into several items
   TextImportTest.kt          the formats a paste may arrive in, and the nesting it must not invent
   TextExportTest.kt          what a copy puts on the clipboard, and its round trip back in
+  SplitTextTest.kt           where Enter splits an item, around a selection, and what is trimmed
   VoiceCaptureTest.kt        a transcript reaching the file, and undo taking it back off
   NavigationTransitionUiTest.kt  Compose: taps during screen transitions
 ```
@@ -378,6 +381,17 @@ app/src/test/java/dev/shafqat/mytodo/
   edited row's index plus one, at its depth; when the item has children showing, that position *is*
   its first child, which is what an outliner does anyway. It falls out of the move coordinates
   rather than being a second code path.
+- **Enter splits the item at the caret.** The text before it stays, the text after it goes onto
+  the new row below (`splitText` in `model/SplitText.kt`, pure and tested), and the ViewModel's
+  `splitItem` is `setItemText` followed by `addItemAfter` with that text — so the children stay
+  with the top half, and the new item starts unticked. A selection is deleted first, the
+  whitespace either side of the split is trimmed, and a caret at the end carries nothing, which is
+  plain Enter. Every editor opened by `focusItemId` starts with its caret at offset 0: for a
+  blank item that is also its end, and a split-off item wants it before the text it carried.
+- **The editor reports only changes of text.** `BasicTextField` also calls back when just the
+  selection moves, including as it loses focus — and after a split, that callback carried the old
+  editor's whole text back onto the item it had just been cut from. The editor also takes the kept
+  half into its own value before handing the split up.
 - **Where Enter puts the new item is read off the caret *and* the text.** With nothing of the item
   in front of the caret there is nothing to carry on below it, so Enter at offset 0 inserts *above*
   instead: `addItemBefore`, the same insert at the row's own index and depth, so the item it lands

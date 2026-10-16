@@ -69,8 +69,11 @@ import dev.shafqat.mytodo.model.updateItem
  */
 data class ItemEditActions(
     val onTextChange: (itemId: String, text: String) -> Unit = { _, _ -> },
-    /** Enter: start a new item straight after this one. */
-    val onSplit: (itemId: String) -> Unit = {},
+    /**
+     * Enter: this item keeps [keep] as its text, and a new item straight after it starts with
+     * [carry] — what followed the caret, or nothing when the caret was at the end.
+     */
+    val onSplit: (itemId: String, keep: String, carry: String) -> Unit = { _, _, _ -> },
     /** Enter with the caret at the start of an item that has text: start a new one above it. */
     val onSplitAbove: (itemId: String) -> Unit = {},
     /**
@@ -127,11 +130,13 @@ fun TodoItemList(
 
     LaunchedEffect(editingItemId) { reportEditing(editingItemId) }
 
-    // A new item arrives already open for typing, which is the whole point of Enter.
+    // A new item arrives already open for typing, which is the whole point of Enter. The caret
+    // starts at its beginning: for a blank item that is also its end, and an item split off by
+    // Enter starts with the text that followed the caret, which is where the caret still belongs.
     LaunchedEffect(focusItemId) {
         if (focusItemId != null) {
             editingItemId = focusItemId
-            editingCaret = null
+            editingCaret = 0
         }
     }
 
@@ -302,7 +307,7 @@ fun TodoItemList(
                         showDragHandle = dragEnabled,
                         editCallbacks = RowEditCallbacks(
                             onTextChange = { text -> actions.onTextChange(row.item.id, text) },
-                            onSplit = { actions.onSplit(row.item.id) },
+                            onSplit = { keep, carry -> actions.onSplit(row.item.id, keep, carry) },
                             onSplitAbove = {
                                 // The row being edited keeps its text and its place in the
                                 // tree; the editor moves up to the blank row that has just

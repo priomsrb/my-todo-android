@@ -143,10 +143,15 @@ class TodoListViewModel(
         }
     }
 
-    /** Enter: a new item on the row after [afterItemId], open for typing. */
-    fun addItemAfter(afterItemId: String) {
+    /**
+     * Enter: [itemId] keeps [keep] as its text, and a new item on the row after it takes [carry],
+     * open for typing. Its children stay where they were, so when they are showing the new item is
+     * the first of them — the row below, which is what Enter always adds.
+     */
+    fun splitItem(itemId: String, keep: String, carry: String) {
         viewModelScope.launch {
-            _focusItemId.value = repository.addItemAfter(listId, afterItemId).id
+            repository.setItemText(listId, itemId, keep)
+            _focusItemId.value = repository.addItemAfter(listId, itemId, carry).id
         }
     }
 

@@ -76,6 +76,7 @@ import dev.shafqat.mytodo.R
 import dev.shafqat.mytodo.model.DividerStyle
 import dev.shafqat.mytodo.model.TodoItem
 import dev.shafqat.mytodo.model.dividerOf
+import dev.shafqat.mytodo.model.splitText
 import kotlinx.coroutines.flow.first
 
 /** Indent applied per nesting level. Depth is unbounded, so this only scales the padding. */
@@ -109,8 +110,11 @@ const val ItemEditorTag = "item-editor"
  */
 data class RowEditCallbacks(
     val onTextChange: (String) -> Unit = {},
-    /** Enter with the caret anywhere past the start: finish this item and start the next one. */
-    val onSplit: () -> Unit = {},
+    /**
+     * Enter with the caret anywhere past the start: this item keeps the text before the caret,
+     * and a new one below it takes the rest — nothing, with the caret at the end.
+     */
+    val onSplit: (keep: String, carry: String) -> Unit = { _, _ -> },
     /** Enter with the caret on the first character: start an item on the row above this one. */
     val onSplitAbove: () -> Unit = {},
     /** Backspace on an item with nothing in it: take the row away and carry on above it. */
@@ -398,8 +402,9 @@ private fun caretOffsetAt(layout: TextLayoutResult?, touch: Offset?, textTop: Fl
  * Its own state is the source of truth for what is on screen; every keystroke is also reported
  * upward, where the repository's debounce turns a burst of typing into one write. Keys are handled
  * on the *preview* pass so Tab moves the item rather than the focus, and Enter starts another item
- * rather than inserting a newline — the row after this one, or the row above it when the caret has
- * nothing of this item in front of it and the item has something to keep below.
+ * rather than inserting a newline — the row after this one, taking whatever followed the caret, or
+ * the row above it when the caret has nothing of this item in front of it and the item has
+ * something to keep below.
  *
  * A separate composable so that its state — including where the caret sits — is created fresh when
  * an edit begins and thrown away when it ends.
@@ -444,10 +449,21 @@ private fun ItemEditor(
     // An item with no text at all has its caret at the start too, but there is nothing to carry
     // down and so no reason to insert above: the blank row stays where it is, as the separator the
     // user is keeping, and the new row goes under it with the caret.
+    //
+    // Anywhere else the item is split: the text after the caret goes down with it onto the new
+    // row, and a selection is deleted first, as Enter over one does in any editor.
     fun onEnter() {
         val selection = value.selection
         val atStart = value.text.isNotEmpty() && selection.collapsed && selection.start == 0
-        if (atStart) current.onSplitAbove() else current.onSplit()
+        if (atStart) {
+            current.onSplitAbove()
+        } else {
+            val split = splitText(value.text, selection.start, selection.end)
+            // The field shows the half it keeps for the moment it has left, so nothing it reports
+            // on its way out can put the carried text back.
+            value = TextFieldValue(split.keep, TextRange(split.keep.length))
+            current.onSplit(split.keep, split.carry)
+        }
     }
 
     BasicTextField(
@@ -457,9 +473,14 @@ private fun ItemEditor(
             // typed on an IME that offers a return key now that the field wraps — becomes a space.
             // Swapping rather than dropping keeps the length, and with it the caret, where the
             // field thinks it is.
+            //
+            // Only a change of text is reported. The field also calls back when just the caret or
+            // selection moves — including as it loses focus, by which point the item may already
+            // hold something else, as it does straight after Enter has split it.
             val flattened = newValue.withoutNewlines()
+            val textChanged = flattened.text != value.text
             value = flattened
-            current.onTextChange(flattened.text)
+            if (textChanged) current.onTextChange(flattened.text)
         },
         // The row's own style, not a merge onto whatever the surface provides: the two have to
         // lay out identically, and a style the field inherits brings its own line metrics with it.

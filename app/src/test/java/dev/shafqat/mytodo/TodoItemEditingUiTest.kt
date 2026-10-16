@@ -26,10 +26,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextInputSelection
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.withKeyDown
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.height
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -124,9 +126,11 @@ class TodoItemEditingUiTest {
                     onTextChange = { id, text ->
                         items = items.updateItem(id) { it.copy(text = text) }
                     },
-                    onSplit = { id ->
-                        // What the repository does: a new item on the row after this one.
-                        val item = TodoItem(text = "")
+                    onSplit = { id, keep, carry ->
+                        // What the ViewModel does: this item keeps the text before the caret, and
+                        // a new item on the row after it takes the rest.
+                        items = items.updateItem(id) { it.copy(text = keep) }
+                        val item = TodoItem(text = carry)
                         val row = items.visibleRowOf(id)
                         items = if (row == null) {
                             items.addItem(item)
@@ -253,6 +257,61 @@ class TodoItemEditingUiTest {
         editor().performTextInput("New")
         composeRule.waitForIdle()
         assertEquals(listOf("Alpha", "New", "Bravo", "Charlie"), renderedOrder)
+    }
+
+    /** Opens an item with the caret after its [chars]th character. */
+    private fun startEditingAt(text: String, chars: Int) {
+        startEditingAtStart(text)
+        editor().performTextInputSelection(TextRange(chars))
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun `Enter in the middle of an item splits it at the caret`() {
+        composeRule.setContent { Harness() }
+        startEditingAt("Bravo", 2)
+
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Alpha", "Br", "avo", "Charlie"), renderedOrder)
+
+        // The editor moved down to the new row, with the caret before the text it carried.
+        editor().performTextInput("X")
+        composeRule.waitForIdle()
+        assertEquals(listOf("Alpha", "Br", "Xavo", "Charlie"), renderedOrder)
+    }
+
+    @Test
+    fun `Enter over a selection deletes it and splits there`() {
+        val spaced = listOf(TodoItem(id = "milk", text = "milk and eggs"))
+        composeRule.setContent { Harness(spaced) }
+        startEditingAtStart("milk and eggs")
+        editor().performTextInputSelection(TextRange(5, 8))
+        composeRule.waitForIdle()
+
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        // The space either side of the split is trimmed away too.
+        assertEquals(listOf("milk", "eggs"), renderedOrder)
+    }
+
+    @Test
+    fun `splitting a parent leaves its children with the top half`() {
+        val nested = listOf(
+            TodoItem(
+                id = "alpha", text = "Alpha",
+                children = listOf(TodoItem(id = "alpha1", text = "Alpha 1")),
+            ),
+        )
+        composeRule.setContent { Harness(nested) }
+        startEditingAt("Alpha", 2)
+
+        editor().performKeyInput { pressKey(Key.Enter) }
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("Al" to 0, "pha" to 1, "Alpha 1" to 1), renderedRows)
     }
 
     @Test
